@@ -2,7 +2,6 @@ from typing import Dict
 import traceback
 import logging
 import pymysql
-import os
 
 class DBConnector:
     """ 데이터 베이스와 연동을 도와주는 클래스
@@ -15,7 +14,6 @@ class DBConnector:
     @staticmethod
     def load_mysql_user_info() -> Dict[str, str]:
         try:
-            print(os.getcwd())
             f = open("user_info.txt", "r")
 
         except FileNotFoundError:
