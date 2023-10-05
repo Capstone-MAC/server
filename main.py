@@ -43,7 +43,6 @@ def custom_openapi():
 
 app = FastAPI()
 app.openapi = custom_openapi
-app.include_router(user_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -55,6 +54,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key="Session-key",
 )
+app.include_router(user_router)
 
 @app.get("/")
 async def index():
