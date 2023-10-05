@@ -41,9 +41,7 @@ def custom_openapi():
 
     return app.openapi_schema
 
-app = FastAPI(
-    validation_error_model = None
-)
+app = FastAPI()
 app.openapi = custom_openapi
 app.include_router(user_router)
 app.add_middleware(
