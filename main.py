@@ -41,7 +41,7 @@ def custom_openapi():
 
     return app.openapi_schema
 
-app = FastAPI()
+app = FastAPI(swagger_ui_parameters={"syntaxHighlight.theme": "nord"})
 app.openapi = custom_openapi
 app.add_middleware(
     CORSMiddleware,

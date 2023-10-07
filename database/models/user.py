@@ -1,4 +1,4 @@
-from typing import List, Optional, TypeVar, Dict, Any, Tuple
+from typing import List, Optional, TypeVar, Dict, Any
 from pymysql.connections import Connection
 from pydantic import BaseModel
 from enum import Enum
@@ -6,6 +6,8 @@ import traceback
 import datetime
 import logging
 import bcrypt
+import uuid
+import os
 
 User = TypeVar("User", bound="User")
 
@@ -71,13 +73,16 @@ class User:
     """ User class
     
     Methods:
-        _load_user_info_with_user_seq(conn, seq): 유저 고유 번호를 통해 유저 정보를 데이터베이스 에서 불러오는 static 메소드 \n
-        _check_exsit_session (self, session): 유저의 로그인이 유효한지 세션을 검사하는 class 메소드 \n
-        check_duplicate(conn, user_id = None, email = None) : 데이터 중복을 확인하기 위해 사용되는 static 메소드, 아이디와 이메일만 제공 \n
-        signup(conn, user_id, password, name, email, phone, idnum, address) : 회원가입 할 때 사용되는 static 메소드 \n
-        signout(self, conn, user_id, password): 회원탈퇴 할 때 사용되는 class 메소드 \n
-        login(conn, user_id, password): 로그인 할 때 사용되는 static 메소드 \n
-        logout(self, session): 로그아웃 할 때 사용되는 class 메소드 \n
+        _load_user_info (conn: Connection, seq: Optional[int] = None, user_id: Optional[str] = None, email: Optional[str] = None): 유저 식별 정보를 통해 유저 정보를 데이터베이스 에서 불러오는 static 메소드 \n
+        _check_exsit_session(self, session: Dict[str, Any]): 유저의 로그인이 유효한지 세션을 검사하는 class 메소드 \n
+        info(self): 사용자의 정보를 조회하는 class 메소드 \n
+        check_duplicate(conn: Connection, user_id: Optional[str] = None, email: Optional[str] = None): 데이터 중복을 확인하기 위해 사용되는 static 메소드, 아이디와 이메일만 제공 \n
+        signup(conn: Connection, user_id: str, password: str, name: str, email: str, phone: str, idnum: str, address_seq: int): 회원가입 할 때 사용되는 static 메소드 \n
+        signout(self, conn: Connection, session: Dict[str, Any]): 회원탈퇴 할 때 사용되는 class 메소드 \n
+        login(conn: Connection, session: Dict[str, Any], user_id: str, password: str): 로그인 할 때 사용되는 static 메소드 \n
+        logout(self, conn: Connection, session: Dict[str, Any]): 로그아웃 할 때 사용되는 class 메소드 \n
+        forgot_password(conn:Connection, user_id: str, new_password: str): 사용자가 비밀번호를 잃어버렸을 때 사용되는 static 메소드 \n
+        update_profile_image(self, conn: Connection, session: Dict[str, Any], profile: Optional[bytes]): 사용자의 프로필 이미지를 업데이트 할 때 사용되는 class 메소드 \n
     """
     seq: int # 유저 일련번호
     user_id: str # 유저 아이디
@@ -85,8 +90,8 @@ class User:
     name: str # 유저 이름
     email: str # 유저 이메일
     phone: str # 유저 핸드폰 번호
-    idnum: str # 주민등록번호
     profile: str # 유저 프로필 이미지 경로
+    idnum: str # 주민등록번호
     address_seq: int # 유저 주소 고유 번호
     signup_date: datetime.datetime # 회원가입 날짜
     password_update_date: datetime.datetime # 비밀번호 업데이트 날짜
@@ -94,16 +99,16 @@ class User:
     saved_items: List[int] # 찜한 물건들
     saved_categories: List[int] # 찜한 카테고리
     
-    def __init__(self, seq: int, user_id: str, password: str, name: str, email: str, phone: str, idnum: str, address_seq: int, profile: str, signup_date: datetime.datetime, password_update_date: datetime.datetime, last_login: datetime.datetime, saved_items: List[int], saved_categories: List[int]) -> None:
+    def __init__(self, seq: int, user_id: str, password: str, name: str, email: str, phone: str, profile: str, idnum: str, address_seq: int, signup_date: datetime.datetime, password_update_date: datetime.datetime, last_login: datetime.datetime, saved_items: List[int], saved_categories: List[int]) -> None:
         self.seq = seq
         self.user_id = user_id
         self.password = password
         self.name = name
         self.email = email
         self.phone = phone
+        self.profile = profile
         self.idnum = idnum
         self.address_seq = address_seq
-        self.profile = profile
         self.signup_date = signup_date
         self.password_update_date = password_update_date
         self.last_login = last_login
@@ -169,6 +174,23 @@ class User:
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return False
+
+    def info(self) -> Dict[str, Any]:
+        return {
+            "seq": self.seq,
+            "user_id": self.user_id,
+            "name": self.name,
+            "email": self.email,
+            "phone": self.phone,
+            "idnum": self.idnum,
+            "profile": self.profile,
+            "address": "아직 미제공",
+            "signup_date": self.signup_date,
+            "password_update_date": self.password_update_date,
+            "last_login": self.last_login,
+            "saved_items": "아직 미제공",
+            "saved_categories": "아직 미제공"
+        }
         
     @staticmethod
     def check_duplicate(conn: Connection, user_id: Optional[str] = None, email: Optional[str] = None) -> UserResult:
@@ -305,9 +327,15 @@ class User:
             user_info = User._load_user_info(conn, user_id = user_id)
             if user_info:
                 if bcrypt.checkpw(password.encode("utf-8"), user_info.password.encode("utf-8")):
+                    cursor.execute(f"""
+                        UPDATE user
+                        SET last_login = '{datetime.datetime.now()}'
+                        WHERE seq={user_info.seq};            
+                    """)
                     if user_id not in session.keys():
                         session[user_info.user_id] = f"check-id-{user_id}"
                     
+                    conn.commit()
                     return UserResult.SUCCESS
                 
             return UserResult.FAIL
@@ -320,10 +348,11 @@ class User:
             cursor.close()
 
 
-    def logout(self, session: Dict[str, Any]) -> UserResult:
+    def logout(self, conn: Connection, session: Dict[str, Any]) -> UserResult:
         """
         Parameters:
             self: 클래스 객체 본인. \n
+            conn (Connection): 데이터베이스 연동을 위한 pymysql Connection 객체. \n
             session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
         
         Returns:
@@ -331,9 +360,16 @@ class User:
             UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
         """
         
+        cursor = conn.cursor()
         try:
             if self.user_id in session.keys():
                 del session[self.user_id]
+                cursor.execute(f"""
+                        UPDATE user
+                        SET last_login = '{datetime.datetime.now()}'
+                        WHERE seq={self.seq};            
+                    """)
+                conn.commit()
             
             return UserResult.SUCCESS
         
@@ -341,7 +377,9 @@ class User:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return UserResult.INTERNAL_SERVER_ERROR
         
-    
+        finally:
+            cursor.close()
+        
     @staticmethod
     def forgot_password(conn:Connection, user_id: str, new_password: str) -> UserResult:
         """
@@ -383,3 +421,57 @@ class User:
         
         finally:
             cursor.close()
+            
+    
+    def update_profile_image(self, conn: Connection, session: Dict[str, Any], profile: Optional[bytes]) -> UserResult:
+        """
+        Parameters:
+            self: 클래스 객체 본인. \n
+            conn (Connection): 데이터베이스 연동을 위한 pymysql Connection 객체. \n
+            session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
+            profile (Optional[bytes]): 프로필 이미지 파일. None은 기본 이미지로 변경. \n
+        
+        Returns:
+            UserResult.SUCCESS: 프로필 이미지 변경 성공 \n
+            UserResult.FAIL: 프로필 이미지 변경 실패(기존과 같은 이미지) \n
+            UserResult.TIME_OUT: 세션 만료 \n
+            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 \n
+        """
+        
+        if not self._check_exsit_session(session):
+            return UserResult.TIME_OUT
+        
+        cursor = conn.cursor()
+        try:
+            if profile:
+                file_name = f"{str(uuid.uuid4())}.jpg"
+                with open(os.path.join("./images", file_name), "wb") as fp:
+                    fp.write(profile)
+                
+                cursor.execute(f"""
+                    UPDATE user
+                    SET profile = './images/{file_name}'
+                    WHERE user_id='{self.user_id}';
+                """)
+            
+            else:
+                cursor.execute(f"""
+                    UPDATE user
+                    SET profile = NULL
+                    WHERE user_id='{self.user_id}'            
+                """)
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                return UserResult.SUCCESS
+                
+            else:
+                return UserResult.FAIL
+        
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return UserResult.INTERNAL_SERVER_ERROR
+        
+        finally:
+            cursor.close()
+    
