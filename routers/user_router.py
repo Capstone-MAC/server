@@ -313,15 +313,55 @@ async def profile(path: str):
     return FileResponse(path, media_type="image/png")
 
 
-@user_router.get("/")
-async def info(id: str, validated: APIKeyHeader = Depends(auth.get_api_key)):
-    if not validated:
-        return JSONResponse({"message": "접근 권한이 없습니다."}, status_code = UserResult.FORBIDDEN.value)
+@user_router.get("/", 
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "seq": -1,
+                        "user_id": "admin",
+                        "name": "admin",
+                        "email": "admin@admin.com",
+                        "phone": "01000000000",
+                        "idnum": "0001013000000",
+                        "profile": "./images/ec12de1a-64e0-11ee-b17f-eb74bf123164.jpg",
+                        "address_seq": "-1",
+                        "signup_date": "2023-10-06T00:09:25",
+                        "password_update_date": "2023-10-06T00:09:25",
+                        "last_login": "2023-10-06T01:30:36",
+                        "saved_items": "[3, 5]",
+                        "saved_categories": "[1, 2]"
+                    }
+                }
+            }
+        },
+        403: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "접근 권한이 없습니다."}
+                }
+            }
+        },
+        404: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "조건을 만족하는 유저가 없습니다."}
+                }
+            }
+        }
+    },
+    name = "유저 정보 조회하기",
+    description = "API KEY 필요"
+)
+async def info(id: str): # , validated: APIKeyHeader = Depends(auth.get_api_key)):
+    # if not validated:
+    #     return JSONResponse({"message": "접근 권한이 없습니다."}, status_code = UserResult.FORBIDDEN.value)
     
     user = User._load_user_info(DBConnector.connection(), user_id = id)
     if user:
         return user.info()
     
     else:
-        return JSONResponse({"message": "정보 없음"}, status_code = UserResult.NOTFOUND.value)
+        return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = UserResult.NOTFOUND.value)
     

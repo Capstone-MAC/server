@@ -184,7 +184,7 @@ class User:
             "phone": self.phone,
             "idnum": self.idnum,
             "profile": self.profile,
-            "address": "아직 미제공",
+            "address_seq": "아직 미제공",
             "signup_date": self.signup_date,
             "password_update_date": self.password_update_date,
             "last_login": self.last_login,
