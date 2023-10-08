@@ -51,3 +51,36 @@ class DBSettings:
         finally:
             cursor.close()
     
+    
+    @staticmethod
+    def create_item_table(conn: Connection) -> bool:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                CREATE TABLE `user` (
+                    `seq`	BIGINT UNSIGNED AUTO_INCREMENT,
+                    `user_id`	VARCHAR(15)	NOT NULL UNIQUE,
+                    `password`	VARCHAR(60)	NOT NULL,
+                    `name`	VARCHAR(10)	NOT NULL,
+                    `email`	VARCHAR(100)	NOT NULL UNIQUE,
+                    `phone`	VARCHAR(11)	NOT NULL,
+                    `profile`	TEXT	NULL	DEFAULT NULL,
+                    `idnum`	VARCHAR(13)	NOT NULL,
+                    `address_Seq`	BIGINT	NOT NULL,
+                    `signup_date`	DATETIME	NOT NULL,
+                    `password_update_date`	DATETIME	NOT NULL,
+                    `last_login`	DATETIME	NOT NULL,
+                    `saved_items`	TEXT	DEFAULT NULL,
+                    `saved_categories`	TEXT	DEFAULT NULL,
+                    PRIMARY KEY (`seq`),
+                    INDEX (`seq`)
+                );
+            """)
+            return cursor.rowcount > 0
+            
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return False
+            
+        finally:
+            cursor.close()
