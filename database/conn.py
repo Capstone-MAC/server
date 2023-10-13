@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Any
 import traceback
 import logging
 import pymysql
@@ -12,7 +12,7 @@ class DBConnector:
     """
     
     @staticmethod
-    def load_mysql_user_info() -> Dict[str, str]:
+    def load_mysql_user_info() -> Dict[str, Any]:
         try:
             f = open("user_info.txt", "r")
 
