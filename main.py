@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from routers.user_router import user_router
 from fastapi.responses import JSONResponse
-from database.settings import DBSettings
-from database.conn import DBConnector
-from database.models.user import *
+from database.models import *
 from fastapi import FastAPI
 import uvicorn
 
@@ -61,6 +59,4 @@ async def index():
     return JSONResponse({"message": "메인 페이지 입니다."}, status_code = 200)    
     
 if __name__ == "__main__":
-    if not DBSettings.check_exist_table(DBConnector.connection(), "user"):
-        DBSettings.create_user_table(DBConnector.connection())
     uvicorn.run("main:app", host="localhost", port=8000, reload=True)
