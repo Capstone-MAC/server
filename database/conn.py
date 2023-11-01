@@ -1,18 +1,10 @@
+from sqlalchemy.engine.base import Connection
+from sqlalchemy.orm.session import Session
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 from typing import Dict, Any
-import traceback
-import logging
-import pymysql
 
-class DBConnector:
-    """ 데이터 베이스와 연동을 도와주는 클래스
-    
-    Methods:
-        load_mysql_user_info (): user_info.txt 파일에서 유저 정보를 가져오는 메소드 (주의사항: main.py와 같은 파일 경로에서 실행해야함) \n
-        connection (): DB와 연동해서 pymysql.connections.Connection 객체를 반환하는 메소드 \n
-    """
-    
-    @staticmethod
-    def load_mysql_user_info() -> Dict[str, Any]:
+def load_mysql_user_info() -> Dict[str, Any]:
         try:
             f = open("user_info.txt", "r")
 
@@ -39,24 +31,34 @@ class DBConnector:
                 raise KeyError("Insufficient information entered")
 
         return {keys[i]: values[i] for i in range(len(keys))}
+    
+user_info = load_mysql_user_info()
+DB_URL = f'mysql+pymysql://{user_info["user"]}:{user_info["password"]}@{user_info["host"]}:{user_info["port"]}/{user_info["db"]}'
 
-    @staticmethod
-    def connection() -> pymysql.connections.Connection:
-        user_info = DBConnector.load_mysql_user_info()
 
-        try:
-            return pymysql.connect(
-                **user_info
-            )
+class EngineConn(object):
+    """ 데이터 베이스와 연동을 도와주는 클래스
+    
+    Methods:
+        session_maker(self) : 데이터베이스와 연동 했을 때, 필요한 세션을 생성해 주는 class 메소드 \n
+        connection(self): 데이터베이스와 연동을 해주는 class 메소드 \n
+    """
+    
+    def __new__(cls, *args, **kwargs):
+        """싱글톤 패턴을 위해 추가"""
+        if not hasattr(cls,'instance'):
+            print("데이터베이스 연결에 성공하였습니다.")
+            cls.instance = super(EngineConn, cls).__new__(cls)
+            
+        return cls.instance
+    
+    def __init__(self):
+        self.engine = create_engine(DB_URL)
+    
+    def session_maker(self) -> Session:
+        session = sessionmaker(bind = self.engine)
+        return session()
 
-        except pymysql.err.OperationalError as e:
-            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            raise Exception("Error occured")
-
-        except TypeError as e:
-            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            raise Exception("Error occured")
-        
-        except Exception as e:
-            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            raise Exception("Error occured")
+    def connection(self) -> Connection:
+        return self.engine.connect()
+    
