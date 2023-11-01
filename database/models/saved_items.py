@@ -47,7 +47,7 @@ class SavedItems(Base):
         return list(db_session.query(SavedItems).filter_by(user_seq = user_seq).all())
     
     @staticmethod
-    def get_like_user_by_item_seq(db_session: Session, item_seq: int) -> List[SavedItems]:
+    def get_saved_items_by_item_seq(db_session: Session, item_seq: int) -> List[SavedItems]:
         """
         Parameters:
             db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
