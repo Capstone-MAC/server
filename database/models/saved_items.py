@@ -1,13 +1,16 @@
 from sqlalchemy import Column, BIGINT, DateTime, ForeignKeyConstraint
 from sqlalchemy.orm.session import Session
 from database.models.base import Base
+from typing import TypeVar, List
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import TypeVar
 
 SavedItems = TypeVar("SavedItems", bound="SavedItems")
 
 class SavedItems(Base):
+    """SavedItems Class
+    
+    """
     __tablename__ = "saved_items"
     
     user_seq = Column(BIGINT, nullable = False, primary_key = True)
@@ -32,9 +35,25 @@ class SavedItems(Base):
         }
     
     @staticmethod
-    def get_saved_items_by_user_seq(db_session: Session, user_seq: int):
+    def get_saved_items_by_user_seq(db_session: Session, user_seq: int) -> List[SavedItems]:
+        """
+        Parameters:
+            db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
+            user_seq (int): 유저가 저장한 아이템 정보들을 불러올 기준. \n
+            
+        Returns:
+            List[SvedItems]: SavedItems 객체의 list 형태 \n
+        """
         return list(db_session.query(SavedItems).filter_by(user_seq = user_seq).all())
     
     @staticmethod
-    def get_like_user_by_item_seq(db_session: Session, item_seq: int):
+    def get_like_user_by_item_seq(db_session: Session, item_seq: int) -> List[SavedItems]:
+        """
+        Parameters:
+            db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
+            item_seq (int): 아이템을 저장한 유저의 고유번호를 불러올 기준. \n
+            
+        Returns:
+            List[SvedItems]: SavedItems 객체의 list 형태 \n
+        """
         return list(db_session.query(SavedItems).filter_by(item_seq = item_seq).all())
