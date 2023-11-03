@@ -5,6 +5,7 @@ from starlette.responses import FileResponse
 from fastapi.responses import JSONResponse
 from routers.db_engine import db_session
 from fastapi.requests import Request
+from auth.env import SENDER
 from auth import auth
 import logging
 
@@ -445,3 +446,69 @@ async def info(id: str): # , validated: APIKeyHeader = Depends(auth.get_api_key)
     
     else:
         return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = UserResult.NOTFOUND.value)
+
+@user_router.post("/email/send",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "메일을 성공적으로 전송하였습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "메일 전송에 실패하였습니다."}
+                }
+            }
+        }
+    },
+    name = "이메일 전송하기"
+)
+async def send_email(request: Request, email: str):
+    response_dict = {
+        UserResult.SUCCESS: "메일을 성공적으로 전송하였습니다!",
+        UserResult.FAIL: "메일 전송에 실패하였습니다.",
+        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = User.send_email(request.session, email)
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+
+@user_router.post("/email/verify", 
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "성공적으로 인증되었습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "인증에 실패하였습니다."}
+                }
+            }
+        },
+        408: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "세션이 만료되었습니다."}
+                }
+            }
+        }
+    },
+    name = "이메일 인증"
+)
+async def verify_email(request: Request, email: str, verify_code: str):
+    response_dict = {
+        UserResult.SUCCESS: "성공적으로 인증되었습니다!",
+        UserResult.FAIL: "인증에 실패하였습니다.",
+        UserResult.TIME_OUT: "세션이 만료되었습니다.",
+        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = User.verify_email_code(request.session, email, verify_code)
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)

@@ -1,17 +1,24 @@
 from sqlalchemy import Column, TEXT, BIGINT, String, DateTime
 from typing import List, Optional, TypeVar, Dict, Any
 from database.models.saved_items import SavedItems
+from email.mime.multipart import MIMEMultipart
 from sqlalchemy.orm.session import Session
 from database.models.base import Base
+from email.mime.text import MIMEText
+from auth.env import APP_PASSWORD
 from sqlalchemy.sql import func
 from pydantic import BaseModel
 from datetime import datetime
+from auth.env import SENDER
+from random import randint
 from enum import Enum
 import traceback
 import logging
+import smtplib
 import bcrypt
 import uuid
 import os
+
 
 User = TypeVar("User", bound="User")
 
@@ -329,7 +336,26 @@ class User(Base):
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return UserResult.INTERNAL_SERVER_ERROR
+    
+    @staticmethod
+    def forgot_id(db_session: Session, email: str) -> Optional[str]:
+        """
+        Parameters:
+            db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
+            email (str): 데이터베이스에서 유저의 아이디 정보를 불러오기 위한 email 정보. \n
+            
+        Returns:
+            str: 성공적으로 유저 아이디를 불러옴 \n
+            None: 유저 아이디를 불러오는데 실패함 \n
+        """
+        try:
+            pass
         
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return None
+        
+    
     @staticmethod
     def forgot_password(db_session: Session, session:Dict[str, Any], user_id: str, new_password: str) -> UserResult:
         """
@@ -441,3 +467,72 @@ class User(Base):
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return UserResult.INTERNAL_SERVER_ERROR
+        
+    @staticmethod
+    def send_email(session: Dict[str, Any], email: str) -> UserResult:
+        """
+        Parameters:
+            session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
+            email (str): 인증코드를 보낼 이메일 주소. \n
+            
+        Returns:
+            UserResult.SUCCESS: 인증 코드를 성공적으로 전송 \n
+            UserResult.FAIL: 인증 코드를 보내는데 실패 \n
+            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
+        """
+        try:
+            message = MIMEMultipart("alternative")
+            # html = open("html/email_verify.html").read() 아직 미완성
+            message["Subject"] = "MAC 인증번호 요청"
+            message["From"] = SENDER
+            message["To"] = email
+            session[f"{email}-verify-code"] = str(randint(10 ** 4, 10 ** 6 - 1)).rjust(6, '0')
+
+            text = f"<html><body><div>인증 코드: {session[f'{email}-verify-code']}</div></body></html>"
+            # part2 = MIMEText(html, "html") 아직 미완성
+            part2 = MIMEText(text, "html")
+
+            message.attach(part2)
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(SENDER, APP_PASSWORD)
+                server.sendmail(SENDER, email, message.as_string())
+            
+            session[f"{email}-start-time"] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+
+            return UserResult.SUCCESS
+
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return UserResult.INTERNAL_SERVER_ERROR
+        
+    @staticmethod
+    def verify_email_code(session: Dict[str, Any], email: str, verify_code: str) -> UserResult:
+        """
+        Parameters:
+            session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
+            email (str): 인증코드를 보낼 이메일 주소. \n
+            verify_code (str): 인증코드 \n
+            
+        Returns:
+            UserResult.SUCCESS: 인증 성공 \n
+            UserResult.FAIL: 인증 실패 \n
+            UserResult.TIME_OUT: 인증 시간 초과 \n
+            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
+        """
+        try:
+            if (datetime.now() - datetime.strptime(session[f"{email}-start-time"], "%Y/%m/%d %H:%M:%S")).total_seconds() >= 300:
+                return UserResult.TIME_OUT
+            
+            if verify_code == session[f"{email}-verify-code"]:
+                return UserResult.SUCCESS
+            
+            return UserResult.FAIL
+
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return UserResult.INTERNAL_SERVER_ERROR
+        
+        finally:
+            del session[f"{email}-verify-code"]
+            del session[f"{email}-start-time"]
