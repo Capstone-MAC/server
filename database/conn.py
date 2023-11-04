@@ -56,8 +56,17 @@ class EngineConn(object):
         self.engine = create_engine(DB_URL)
     
     def session_maker(self) -> Session:
-        session = sessionmaker(bind = self.engine)
-        return session()
+        Session = sessionmaker(bind = self.engine)
+        session = Session()    
+        try:
+            return session
+
+        except:
+            session.rollback()
+            raise
+            
+        finally:
+            session.close()
 
     def connection(self) -> Connection:
         return self.engine.connect()
