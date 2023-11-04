@@ -5,7 +5,6 @@ from starlette.responses import FileResponse
 from fastapi.responses import JSONResponse
 from routers.db_engine import db_session
 from fastapi.requests import Request
-from auth.env import SENDER
 from auth import auth
 import logging
 
@@ -166,7 +165,38 @@ async def logout(request: Request, user_id: str):
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
-@user_router.post("/forgot_password",
+@user_router.post("/forgot/id",
+   responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "아이디는 'admin' 입니다."}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보 변경에 실패하였습니다."}
+                }
+            }
+        }
+    },
+   name = "아이디 찾기"               
+)
+async def forgot_id(email: str):
+    try:
+        user = User._load_user_info(db_session, email = email)
+        if user is None:
+            return JSONResponse({"message": "아이디 찾기에 실패하였습니다."}, status_code = UserResult.FAIL.value)
+
+        else:
+            return JSONResponse({"message": f"아이디는 {user.user_id} 입니다."}, status_code = UserResult.SUCCESS.value)
+    
+    except:
+        return JSONResponse({"message": "서버 내부 에러가 발생하였습니다."}, status_code = UserResult.INTERNAL_SERVER_ERROR.value)
+
+@user_router.post("/forgot/password",
     responses={
         200: {
             "content": {

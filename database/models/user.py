@@ -335,26 +335,7 @@ class User(Base):
         
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
-    
-    @staticmethod
-    def forgot_id(db_session: Session, email: str) -> Optional[str]:
-        """
-        Parameters:
-            db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
-            email (str): 데이터베이스에서 유저의 아이디 정보를 불러오기 위한 email 정보. \n
-            
-        Returns:
-            str: 성공적으로 유저 아이디를 불러옴 \n
-            None: 유저 아이디를 불러오는데 실패함 \n
-        """
-        try:
-            pass
-        
-        except Exception as e:
-            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return None
-        
+            return UserResult.INTERNAL_SERVER_ERROR    
     
     @staticmethod
     def forgot_password(db_session: Session, session:Dict[str, Any], user_id: str, new_password: str) -> UserResult:
@@ -482,14 +463,12 @@ class User(Base):
         """
         try:
             message = MIMEMultipart("alternative")
-            # html = open("html/email_verify.html").read() 아직 미완성
             message["Subject"] = "MAC 인증번호 요청"
             message["From"] = SENDER
             message["To"] = email
             session[f"{email}-verify-code"] = str(randint(10 ** 4, 10 ** 6 - 1)).rjust(6, '0')
 
             text = f"<html><body><div>인증 코드: {session[f'{email}-verify-code']}</div></body></html>"
-            # part2 = MIMEText(html, "html") 아직 미완성
             part2 = MIMEText(text, "html")
 
             message.attach(part2)
