@@ -2,8 +2,8 @@ from database.models.user import User, UserResult, SignUpModel, SignoutModel, Lo
 from fastapi import APIRouter, UploadFile, File, Depends
 from fastapi.security.api_key import APIKeyHeader
 from starlette.responses import FileResponse
+from routers.env import db_session, session
 from fastapi.responses import JSONResponse
-from routers.db_engine import db_session
 from fastapi.requests import Request
 from auth import auth
 import logging
@@ -88,8 +88,8 @@ async def signout(request: Request, model: SignoutModel):
     result = UserResult.FAIL
     user = User._load_user_info(db_session, user_id = model.user_id)
     if user:
-        if User.login(db_session, request.session, model.user_id, model.password) == UserResult.SUCCESS:
-            result = user.signout(db_session, request.session)
+        if User.login(db_session, session, model.user_id, model.password) == UserResult.SUCCESS:
+            result = user.signout(db_session, session)
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -120,7 +120,7 @@ async def login(request: Request, model: LoginModel):
         UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = User.login(db_session, request.session, model.user_id, model.password)
+    result = User.login(db_session, session, model.user_id, model.password)
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -159,7 +159,7 @@ async def logout(request: Request, user_id: str):
     
     user = User._load_user_info(db_session, user_id = user_id)
     if user:
-        result = user.logout(db_session, request.session)
+        result = user.logout(db_session, session)
     else:
         result = UserResult.FAIL
     
@@ -221,7 +221,7 @@ async def forgot_password(request: Request, model: ForgotPasswordModel):
         UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = User.forgot_password(db_session, request.session, model.user_id, model.password)
+    result = User.forgot_password(db_session, session, model.user_id, model.password)
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -417,7 +417,7 @@ async def update_profile(request: Request, user_id: str, file: UploadFile = File
     }
     user = User._load_user_info(db_session, user_id = user_id)
     if user:
-        result = user.update_profile_image(db_session, request.session, None if file is None else await file.read())
+        result = user.update_profile_image(db_session, session, None if file is None else await file.read())
     
     else:
         logging.error("유저가 존재하지 않습니다.")
@@ -503,7 +503,7 @@ async def send_email(request: Request, email: str):
         UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = User.send_email(request.session, email)
+    result = User.send_email(session, email)
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
 @user_router.post("/email/verify", 
@@ -540,5 +540,5 @@ async def verify_email(request: Request, email: str, verify_code: str):
         UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = User.verify_email_code(request.session, email, verify_code)
+    result = User.verify_email_code(session, email, verify_code)
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
