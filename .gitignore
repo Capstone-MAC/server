@@ -1,4 +1,4 @@
 __pycache__
 user_info.txt
-auth/env.py
+env.py*
 images
