@@ -1,11 +1,8 @@
 from database.models.user import User, UserResult, SignUpModel, SignoutModel, LoginModel, ForgotPasswordModel
-from fastapi import APIRouter, UploadFile, File, Depends
-from fastapi.security.api_key import APIKeyHeader
+from fastapi import APIRouter, UploadFile, File
 from starlette.responses import FileResponse
 from routers.env import db_session, session
 from fastapi.responses import JSONResponse
-from fastapi.requests import Request
-from auth import auth
 import logging
 
 user_router = APIRouter(
@@ -77,7 +74,7 @@ async def signup(model: SignUpModel):
     },
     name = "회원 탈퇴"
 )
-async def signout(request: Request, model: SignoutModel):
+async def signout(model: SignoutModel):
     response_dict = {
         UserResult.SUCCESS: "회원탈퇴에 성공하였습니다.",
         UserResult.FAIL: "회원탈퇴에 실패하였습니다.",
@@ -113,7 +110,7 @@ async def signout(request: Request, model: SignoutModel):
     },
     name = "로그인"
 )
-async def login(request: Request, model: LoginModel):
+async def login(model: LoginModel):
     response_dict = {
         UserResult.SUCCESS: "로그인에 성공하였습니다.",
         UserResult.FAIL: "아이디 또는 비밀번호가 일치하지 않습니다.",
@@ -151,7 +148,7 @@ async def login(request: Request, model: LoginModel):
     },
     name = "로그아웃"
 )
-async def logout(request: Request, user_id: str):
+async def logout(user_id: str):
     response_dict = {
         UserResult.SUCCESS: "성공적으로 로그아웃 하였습니다",
         UserResult.FAIL: "로그아웃에 실패하였습니다.",
@@ -214,7 +211,7 @@ async def forgot_id(email: str):
         }
     },
     name = "비밀번호 변경")
-async def forgot_password(request: Request, model: ForgotPasswordModel):
+async def forgot_password(model: ForgotPasswordModel):
     response_dict = {
         UserResult.SUCCESS: "성공적으로 정보를 변경하였습니다.",
         UserResult.FAIL: "정보 변경에 실패하였습니다.",
@@ -408,7 +405,7 @@ async def profile(path: str):
     },
     name = "프로필 이미지 업데이트"
 )
-async def update_profile(request: Request, user_id: str, file: UploadFile = File(None)):
+async def update_profile(user_id: str, file: UploadFile = File(None)):
     response_dict = {
         UserResult.SUCCESS: "이미지를 성공적으로 변경하였습니다!",
         UserResult.FAIL: "이미지 변경에 실패하였습니다.",
@@ -425,7 +422,73 @@ async def update_profile(request: Request, user_id: str, file: UploadFile = File
                 
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
-@user_router.get("/", 
+@user_router.post("/email/send",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "메일을 성공적으로 전송하였습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "메일 전송에 실패하였습니다."}
+                }
+            }
+        }
+    },
+    name = "이메일 전송하기"
+)
+async def send_email(email: str):
+    response_dict = {
+        UserResult.SUCCESS: "메일을 성공적으로 전송하였습니다!",
+        UserResult.FAIL: "메일 전송에 실패하였습니다.",
+        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = User.send_email(session, email)
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+
+@user_router.post("/email/verify", 
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "성공적으로 인증되었습니다!"}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "인증에 실패하였습니다."}
+                }
+            }
+        },
+        408: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "세션이 만료되었습니다."}
+                }
+            }
+        }
+    },
+    name = "이메일 인증"
+)
+async def verify_email(email: str, verify_code: str):
+    response_dict = {
+        UserResult.SUCCESS: "성공적으로 인증되었습니다!",
+        UserResult.FAIL: "인증에 실패하였습니다.",
+        UserResult.TIME_OUT: "세션이 만료되었습니다.",
+        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    result = User.verify_email_code(session, email, verify_code)
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+
+@user_router.get("/{user_id}", 
     responses={
         200: {
             "content": {
@@ -466,79 +529,10 @@ async def update_profile(request: Request, user_id: str, file: UploadFile = File
     name = "유저 정보 조회하기",
     description = "API KEY 필요"
 )
-async def info(id: str): # , validated: APIKeyHeader = Depends(auth.get_api_key)):
-    # if not validated:
-    #     return JSONResponse({"message": "접근 권한이 없습니다."}, status_code = UserResult.FORBIDDEN.value)
-    
-    user = User._load_user_info(db_session, user_id = id)
+async def info(user_id: str):
+    user = User._load_user_info(db_session, user_id = user_id)
     if user:
         return user.info
     
     else:
         return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = UserResult.NOTFOUND.value)
-
-@user_router.post("/email/send",
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "메일을 성공적으로 전송하였습니다!"}
-                }
-            }
-        },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "메일 전송에 실패하였습니다."}
-                }
-            }
-        }
-    },
-    name = "이메일 전송하기"
-)
-async def send_email(request: Request, email: str):
-    response_dict = {
-        UserResult.SUCCESS: "메일을 성공적으로 전송하였습니다!",
-        UserResult.FAIL: "메일 전송에 실패하였습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
-    }
-    
-    result = User.send_email(session, email)
-    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
-
-@user_router.post("/email/verify", 
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "성공적으로 인증되었습니다!"}
-                }
-            }
-        },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "인증에 실패하였습니다."}
-                }
-            }
-        },
-        408: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "세션이 만료되었습니다."}
-                }
-            }
-        }
-    },
-    name = "이메일 인증"
-)
-async def verify_email(request: Request, email: str, verify_code: str):
-    response_dict = {
-        UserResult.SUCCESS: "성공적으로 인증되었습니다!",
-        UserResult.FAIL: "인증에 실패하였습니다.",
-        UserResult.TIME_OUT: "세션이 만료되었습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
-    }
-    
-    result = User.verify_email_code(session, email, verify_code)
-    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
