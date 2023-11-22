@@ -211,7 +211,7 @@ class User(Base):
             if user_id and email:
                 return UserResult.VALIDATION_ERROR
             
-            return UserResult.SUCCESS if len(result) == 0 else UserResult.CONFLICT # type: ignore
+            return UserResult.SUCCESS if result is None or len(result) == 0 else UserResult.CONFLICT # type: ignore
 
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
