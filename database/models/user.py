@@ -2,6 +2,7 @@ from sqlalchemy import Column, TEXT, BIGINT, String, DateTime
 from typing import List, Optional, TypeVar, Dict, Any
 from database.models.saved_items import SavedItems
 from email.mime.multipart import MIMEMultipart
+from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
 from database.models.base import Base
 from email.mime.text import MIMEText
@@ -11,7 +12,6 @@ from pydantic import BaseModel
 from datetime import datetime
 from auth.env import SENDER
 from random import randint
-from enum import Enum
 import traceback
 import logging
 import smtplib
@@ -21,27 +21,6 @@ import os
 
 
 User = TypeVar("User", bound="User")
-
-class UserResult(Enum):
-    """ 유저가 어떤 행동을 할 때, 결과를 클래스로 구현
-
-    Parameters:
-        SUCCESS (200): 성공 \n
-        FAIL (401): 실패 \n
-        FORBIDDEN (403): 금지됨 \n
-        NOTFOUND (404): 찾을 수 없음 \n
-        TIME_OUT (408): 세션 만료됨 \n
-        CONFLICT (409): 데이터 충돌됨 \n
-        INTERNAL_SERVER_ERROR (500): 서버 내부 에러 \n
-    """
-    SUCCESS = 200
-    FAIL = 401
-    FORBIDDEN = 403
-    NOTFOUND = 404
-    TIME_OUT = 408
-    CONFLICT = 409
-    VALIDATION_ERROR = 422
-    INTERNAL_SERVER_ERROR = 500
     
     
 class IDPWDModel(BaseModel):
@@ -186,7 +165,7 @@ class User(Base):
             return False
         
     @staticmethod
-    def check_duplicate(db_session: Session, user_id: Optional[str] = None, email: Optional[str] = None) -> UserResult:
+    def check_duplicate(db_session: Session, user_id: Optional[str] = None, email: Optional[str] = None) -> MACResult:
         """
         Parameters:
             db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
@@ -194,10 +173,10 @@ class User(Base):
             email (str | None): 유저가 회원가입 할 때 중복 체크 하는 이메일. \n
             
         Returns:
-            UserResult.SUCCESS: 아이디 또는 이메일 사용 가능! \n
-            UserResult.CONFLICT: 아이디 또는 이메일이 중복 됨! \n
-            UserResult.VALIDATION_ERROR: 아이디 또는 이메일만 입력 가능! \n
-            UserResult.INTERNAL_SERVER_ERROR: 중복 체크 도중 서버 코드 에러 발생! (에러 문구 확인) \n
+            MACResult.SUCCESS: 아이디 또는 이메일 사용 가능! \n
+            MACResult.CONFLICT: 아이디 또는 이메일이 중복 됨! \n
+            MACResult.ENTITY_ERROR: 아이디 또는 이메일만 입력 가능! \n
+            MACResult.INTERNAL_SERVER_ERROR: 중복 체크 도중 서버 코드 에러 발생! (에러 문구 확인) \n
         """
         
         try:
@@ -209,16 +188,16 @@ class User(Base):
                 result = db_session.query(User).filter_by(email = email).all()
             
             if user_id and email:
-                return UserResult.VALIDATION_ERROR
+                return MACResult.ENTITY_ERROR
             
-            return UserResult.SUCCESS if result is None or len(result) == 0 else UserResult.CONFLICT # type: ignore
+            return MACResult.SUCCESS if result is None or len(result) == 0 else MACResult.CONFLICT # type: ignore
 
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
     
     @staticmethod
-    def signup(db_session: Session, user_id: str, password: str, name: str, email: str, phone: str, idnum: str) -> UserResult:
+    def signup(db_session: Session, user_id: str, password: str, name: str, email: str, phone: str, idnum: str) -> MACResult:
         """
         Parameters:
             db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
@@ -230,26 +209,26 @@ class User(Base):
             idnum (str): 유저의 주민등록 번호 (-를 제외한 문자열 (예시: 021123-3214325)). \n
             
         Returns:
-            UserResult.SUCCESS: 회원가입에 성공! \n
-            UserResult.CONFLICT: 아이디 또는 이메일이 중복됩니다! \n
-            UserResult.INTERNAL_SERVER_ERROR: 회원가입하는데 서버 코드에 에러가 발생! (에러 문구 확인) \n
+            MACResult.SUCCESS: 회원가입에 성공! \n
+            MACResult.CONFLICT: 아이디 또는 이메일이 중복됩니다! \n
+            MACResult.INTERNAL_SERVER_ERROR: 회원가입하는데 서버 코드에 에러가 발생! (에러 문구 확인) \n
         """
         try:
             
-            if User.check_duplicate(db_session, user_id = user_id) == UserResult.CONFLICT and User.check_duplicate(db_session, email = email) == UserResult.CONFLICT:
-                return UserResult.CONFLICT
+            if User.check_duplicate(db_session, user_id = user_id) == MACResult.CONFLICT and User.check_duplicate(db_session, email = email) == MACResult.CONFLICT:
+                return MACResult.CONFLICT
             
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             user = User(user_id = user_id, password = hashed_password, name = name, email = email, phone = phone, idnum = idnum)
             db_session.add(user)
             db_session.commit()
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
             
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
     
-    def signout(self, db_session: Session, session: Dict[str, Any]) -> UserResult:
+    def signout(self, db_session: Session, session: Dict[str, Any]) -> MACResult:
         """
         Parameters:
             self: 클래스 객체 본인. \n
@@ -259,26 +238,26 @@ class User(Base):
             password (str): 유저가 회원탈퇴를 할 때, 본인은증을 하기 위한 비밀번호. \n
             
         Returns:
-            UserResult.SUCCESS: 회원탈퇴에 성공! \n
-            UserResult.FAIL: 회원탈퇴에 실패. \n
-            UserResult.TIME_OUT: 세션이 만료됨. \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러.\n
+            MACResult.SUCCESS: 회원탈퇴에 성공! \n
+            MACResult.FAIL: 회원탈퇴에 실패. \n
+            MACResult.TIME_OUT: 세션이 만료됨. \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러.\n
         """
         if not self._check_exsit_session(session):
-            return UserResult.TIME_OUT
+            return MACResult.TIME_OUT
         
         try:
             db_session.query(User).filter_by(seq = self.seq).delete()
             db_session.commit()
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
             
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
         
         
     @staticmethod
-    def login(db_session: Session, session: Dict[str, Any], user_id: str, password: str) -> UserResult:
+    def login(db_session: Session, session: Dict[str, Any], user_id: str, password: str) -> MACResult:
         """
         Parameters:
             db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
@@ -287,9 +266,9 @@ class User(Base):
             password (str): 유저가 로그인 할 떄 사용하는 비밀번호, 클라이언트에서 암호화 하여 전송. \n
             
         Returns:
-            UserResult.SUCCESS: 로그인 성공. \n
-            UserResult.FAIL: 로그인 실패. \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
+            MACResult.SUCCESS: 로그인 성공. \n
+            MACResult.FAIL: 로그인 실패. \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
         """
         
         try:
@@ -302,16 +281,16 @@ class User(Base):
                         session[user_id] = f"check-id-{user_id}"
                     
                     db_session.commit()
-                    return UserResult.SUCCESS
+                    return MACResult.SUCCESS
                 
-            return UserResult.FAIL
+            return MACResult.FAIL
             
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
 
 
-    def logout(self, db_session: Session, session: Dict[str, Any]) -> UserResult:
+    def logout(self, db_session: Session, session: Dict[str, Any]) -> MACResult:
         """
         Parameters:
             self: 클래스 객체 본인. \n
@@ -319,8 +298,8 @@ class User(Base):
             session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
         
         Returns:
-            UserResult.SUCCESS: 로그아웃 성공. (세션에 존재하지 않는다면, 로그아웃 성공으로 간주함)\n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
+            MACResult.SUCCESS: 로그아웃 성공. (세션에 존재하지 않는다면, 로그아웃 성공으로 간주함)\n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
         """
 
         try:
@@ -328,17 +307,17 @@ class User(Base):
                 del session[self.user_id.__str__()]
                 db_session.query(User).update({"logout_at": datetime.now()})
                 db_session.commit()
-                return UserResult.SUCCESS
+                return MACResult.SUCCESS
             
             else:
-                return UserResult.FAIL
+                return MACResult.FAIL
         
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR    
+            return MACResult.INTERNAL_SERVER_ERROR    
     
     @staticmethod
-    def forgot_password(db_session: Session, session:Dict[str, Any], user_id: str, new_password: str) -> UserResult:
+    def forgot_password(db_session: Session, session:Dict[str, Any], user_id: str, new_password: str) -> MACResult:
         """
         Parameters:
             db_session (Session): 데이터베이스 연동을 위한 sqlalchemy Session 객체. \n
@@ -347,26 +326,26 @@ class User(Base):
             new_password (str): 유저가 변경할 새로운 비밀번호 \n
         
         Returns:
-            UserResult.SUCCESS: 비밀번호 변경 성공. \n
-            UserResult.FAIL: 비밀번호 변경 실패. \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
+            MACResult.SUCCESS: 비밀번호 변경 성공. \n
+            MACResult.FAIL: 비밀번호 변경 실패. \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
         """
         try:
             user = User._load_user_info(db_session, user_id = user_id)
             if not user:
-                return UserResult.FAIL
+                return MACResult.FAIL
             
             hashed_password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             db_session.query(User).filter_by(seq = user.seq).update({"password": hashed_password, "password_update_at": datetime.now()})
             db_session.commit()
             del session[user_id]
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
             
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
     
-    def update_profile_image(self, db_session: Session, session: Dict[str, Any], profile: Optional[bytes]) -> UserResult:
+    def update_profile_image(self, db_session: Session, session: Dict[str, Any], profile: Optional[bytes]) -> MACResult:
         """
         Parameters:
             self: 클래스 객체 본인. \n
@@ -375,13 +354,13 @@ class User(Base):
             profile (Optional[bytes]): 프로필 이미지 파일. None은 기본 이미지로 변경. \n
         
         Returns:
-            UserResult.SUCCESS: 프로필 이미지 변경 성공 \n
-            UserResult.TIME_OUT: 세션 만료 \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 \n
+            MACResult.SUCCESS: 프로필 이미지 변경 성공 \n
+            MACResult.TIME_OUT: 세션 만료 \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 \n
         """
         
         if not self._check_exsit_session(session):
-            return UserResult.TIME_OUT
+            return MACResult.TIME_OUT
         
         try:
             if profile:
@@ -396,11 +375,11 @@ class User(Base):
 
             db_session.query(User).update({"profile": self.profile})
             db_session.commit()
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
         
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
             
     def load_saved_items(self, db_session: Session) -> List[int]:
         """
@@ -421,7 +400,7 @@ class User(Base):
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return []
     
-    def update_saved_items(self, db_session: Session, item_seq: int) -> UserResult:
+    def update_saved_items(self, db_session: Session, item_seq: int) -> MACResult:
         """
         Parameters:
             self: 클랙스 객체 본인. \n
@@ -429,9 +408,9 @@ class User(Base):
             item_seq (int): 좋아하는 상품의 고유 번호. \n
             
         Returns:
-            UserResult.SUCCESS: 성공적으로 변경 성공. \n
-            UserResult.FAIL: 변경 실패. \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
+            MACResult.SUCCESS: 성공적으로 변경 성공. \n
+            MACResult.FAIL: 변경 실패. \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러. \n
         """
         try:
             items = self.load_saved_items(db_session)
@@ -443,23 +422,23 @@ class User(Base):
                 db_session.query(SavedItems).filter_by(user_seq = self.seq, item_seq = item_seq).delete()
                 
             db_session.commit()
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
 
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
         
     @staticmethod
-    def send_email(session: Dict[str, Any], email: str) -> UserResult:
+    def send_email(session: Dict[str, Any], email: str) -> MACResult:
         """
         Parameters:
             session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
             email (str): 인증코드를 보낼 이메일 주소. \n
             
         Returns:
-            UserResult.SUCCESS: 인증 코드를 성공적으로 전송 \n
-            UserResult.FAIL: 인증 코드를 보내는데 실패 \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
+            MACResult.SUCCESS: 인증 코드를 성공적으로 전송 \n
+            MACResult.FAIL: 인증 코드를 보내는데 실패 \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
         """
         try:
             message = MIMEMultipart("alternative")
@@ -479,14 +458,14 @@ class User(Base):
             
             session[f"{email}-start-time"] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
-            return UserResult.SUCCESS
+            return MACResult.SUCCESS
 
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
         
     @staticmethod
-    def verify_email_code(session: Dict[str, Any], email: str, verify_code: str) -> UserResult:
+    def verify_email_code(session: Dict[str, Any], email: str, verify_code: str) -> MACResult:
         """
         Parameters:
             session (Dict[str, Any]): 세션이 존재하는지 확인하기 위한 Session. \n
@@ -494,23 +473,23 @@ class User(Base):
             verify_code (str): 인증코드 \n
             
         Returns:
-            UserResult.SUCCESS: 인증 성공 \n
-            UserResult.FAIL: 인증 실패 \n
-            UserResult.TIME_OUT: 인증 시간 초과 \n
-            UserResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
+            MACResult.SUCCESS: 인증 성공 \n
+            MACResult.FAIL: 인증 실패 \n
+            MACResult.TIME_OUT: 인증 시간 초과 \n
+            MACResult.INTERNAL_SERVER_ERROR: 서버 내부 에러 발생 \n
         """
         try:
             if (datetime.now() - datetime.strptime(session[f"{email}-start-time"], "%Y/%m/%d %H:%M:%S")).total_seconds() >= 300:
-                return UserResult.TIME_OUT
+                return MACResult.TIME_OUT
             
             if verify_code == session[f"{email}-verify-code"]:
-                return UserResult.SUCCESS
+                return MACResult.SUCCESS
             
-            return UserResult.FAIL
+            return MACResult.FAIL
 
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
-            return UserResult.INTERNAL_SERVER_ERROR
+            return MACResult.INTERNAL_SERVER_ERROR
         
         finally:
             del session[f"{email}-verify-code"]

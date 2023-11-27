@@ -1,5 +1,6 @@
-from database.models.user import User, UserResult, SignUpModel, SignoutModel, LoginModel, ForgotPasswordModel
+from database.models.user import User, SignUpModel, SignoutModel, LoginModel, ForgotPasswordModel
 from fastapi import APIRouter, UploadFile, File
+from database.models.results import MACResult
 from starlette.responses import FileResponse
 from routers.env import db_session, session
 from fastapi.responses import JSONResponse
@@ -38,10 +39,10 @@ user_router = APIRouter(
 )
 async def signup(model: SignUpModel):
     response_dict = {
-        UserResult.SUCCESS: "회원가입에 성공하였습니다.",
-        UserResult.FAIL: "회원가입에 실패하였습니다.",
-        UserResult.CONFLICT: "이미 등록된 계정 또는 이메일 입니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "회원가입에 성공하였습니다.",
+        MACResult.FAIL: "회원가입에 실패하였습니다.",
+        MACResult.CONFLICT: "이미 등록된 계정 또는 이메일 입니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     result = User.signup(db_session, model.user_id, model.password, model.name, model.email, model.phone, model.idnum)
     
@@ -76,16 +77,16 @@ async def signup(model: SignUpModel):
 )
 async def signout(model: SignoutModel):
     response_dict = {
-        UserResult.SUCCESS: "회원탈퇴에 성공하였습니다.",
-        UserResult.FAIL: "회원탈퇴에 실패하였습니다.",
-        UserResult.TIME_OUT: "세션이 만료되었습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "회원탈퇴에 성공하였습니다.",
+        MACResult.FAIL: "회원탈퇴에 실패하였습니다.",
+        MACResult.TIME_OUT: "세션이 만료되었습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
-    result = UserResult.FAIL
+    result = MACResult.FAIL
     user = User._load_user_info(db_session, user_id = model.user_id)
     if user:
-        if User.login(db_session, session, model.user_id, model.password) == UserResult.SUCCESS:
+        if User.login(db_session, session, model.user_id, model.password) == MACResult.SUCCESS:
             result = user.signout(db_session, session)
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
@@ -112,9 +113,9 @@ async def signout(model: SignoutModel):
 )
 async def login(model: LoginModel):
     response_dict = {
-        UserResult.SUCCESS: "로그인에 성공하였습니다.",
-        UserResult.FAIL: "아이디 또는 비밀번호가 일치하지 않습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "로그인에 성공하였습니다.",
+        MACResult.FAIL: "아이디 또는 비밀번호가 일치하지 않습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     result = User.login(db_session, session, model.user_id, model.password)
@@ -150,15 +151,15 @@ async def login(model: LoginModel):
 )
 async def logout(user_id: str):
     response_dict = {
-        UserResult.SUCCESS: "성공적으로 로그아웃 하였습니다",
-        UserResult.FAIL: "로그아웃에 실패하였습니다.",
+        MACResult.SUCCESS: "성공적으로 로그아웃 하였습니다",
+        MACResult.FAIL: "로그아웃에 실패하였습니다.",
     }
     
     user = User._load_user_info(db_session, user_id = user_id)
     if user:
         result = user.logout(db_session, session)
     else:
-        result = UserResult.FAIL
+        result = MACResult.FAIL
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -185,13 +186,13 @@ async def forgot_id(email: str):
     try:
         user = User._load_user_info(db_session, email = email)
         if user is None:
-            return JSONResponse({"message": "아이디 찾기에 실패하였습니다."}, status_code = UserResult.FAIL.value)
+            return JSONResponse({"message": "아이디 찾기에 실패하였습니다."}, status_code = MACResult.FAIL.value)
 
         else:
-            return JSONResponse({"message": f"아이디는 {user.user_id} 입니다."}, status_code = UserResult.SUCCESS.value)
+            return JSONResponse({"message": f"아이디는 {user.user_id} 입니다."}, status_code = MACResult.SUCCESS.value)
     
     except:
-        return JSONResponse({"message": "서버 내부 에러가 발생하였습니다."}, status_code = UserResult.INTERNAL_SERVER_ERROR.value)
+        return JSONResponse({"message": "서버 내부 에러가 발생하였습니다."}, status_code = MACResult.INTERNAL_SERVER_ERROR.value)
 
 @user_router.post("/forgot/password",
     responses={
@@ -213,9 +214,9 @@ async def forgot_id(email: str):
     name = "비밀번호 변경")
 async def forgot_password(model: ForgotPasswordModel):
     response_dict = {
-        UserResult.SUCCESS: "성공적으로 정보를 변경하였습니다.",
-        UserResult.FAIL: "정보 변경에 실패하였습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "성공적으로 정보를 변경하였습니다.",
+        MACResult.FAIL: "정보 변경에 실패하였습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     result = User.forgot_password(db_session, session, model.user_id, model.password)
@@ -237,15 +238,23 @@ async def forgot_password(model: ForgotPasswordModel):
                     "example": {"message": "아이디가 이미 사용중입니다."}
                 }
             }
+        },
+        422: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "아이디와 이메일중 하나만 입력하세요."}
+                }
+            }
         }
     },
     name = "아이디 중복 체크"
 )
 async def check_duplicate_id(id: str):
     response_dict = {
-        UserResult.SUCCESS: "아이디가 사용 가능합니다!",
-        UserResult.CONFLICT: "아이디가 이미 사용중입니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "아이디가 사용 가능합니다!",
+        MACResult.CONFLICT: "아이디가 이미 사용중입니다.",
+        MACResult.ENTITY_ERROR: "아이디와 이메일중 하나만 입력하세요.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     result = User.check_duplicate(db_session, user_id = id)
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
@@ -266,15 +275,23 @@ async def check_duplicate_id(id: str):
                     "example": {"message": "이메일이 이미 사용중입니다."}
                 }
             }
+        },
+        422: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "아이디와 이메일중 하나만 입력하세요."}
+                }
+            }
         }
     },
     name = "이메일 중복 체크"
 )
 async def check_duplicate_email(email: str):
     response_dict = {
-        UserResult.SUCCESS: "이메일이 사용 가능합니다!",
-        UserResult.CONFLICT: "이메일이 이미 사용중입니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "이메일이 사용 가능합니다!",
+        MACResult.CONFLICT: "이메일이 이미 사용중입니다.",
+        MACResult.ENTITY_ERROR: "아이디와 이메일중 하나만 입력하세요.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     result = User.check_duplicate(db_session, email = email)
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
@@ -305,9 +322,9 @@ async def load_save_items(user_id: str):
         items = user.load_saved_items(db_session)
     
     else:
-        return JSONResponse({"message": "유저 아이디가 잘못 입력되었습니다."}, status_code=UserResult.FAIL.value)
+        return JSONResponse({"message": "유저 아이디가 잘못 입력되었습니다."}, status_code=MACResult.FAIL.value)
     
-    return JSONResponse({"items": items}, status_code = UserResult.SUCCESS.value)        
+    return JSONResponse({"items": items}, status_code = MACResult.SUCCESS.value)        
     
 
 @user_router.post("/items/update", 
@@ -338,9 +355,9 @@ async def load_save_items(user_id: str):
 )
 async def update_saved_items(user_id: str, item_seq: int):
     response_dict = {
-        UserResult.SUCCESS: "성공적으로 변경하였습니다.",
-        UserResult.FAIL: "변경에 실패하였습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다.",
+        MACResult.SUCCESS: "성공적으로 변경하였습니다.",
+        MACResult.FAIL: "변경에 실패하였습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다.",
     }
     
     user = User._load_user_info(db_session, user_id = user_id)
@@ -349,7 +366,7 @@ async def update_saved_items(user_id: str, item_seq: int):
         
     else:
         logging.error("유저가 존재하지 않습니다.")
-        result = UserResult.INTERNAL_SERVER_ERROR
+        result = MACResult.INTERNAL_SERVER_ERROR
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -407,10 +424,10 @@ async def profile(path: str):
 )
 async def update_profile(user_id: str, file: UploadFile = File(None)):
     response_dict = {
-        UserResult.SUCCESS: "이미지를 성공적으로 변경하였습니다!",
-        UserResult.FAIL: "이미지 변경에 실패하였습니다.",
-        UserResult.TIME_OUT: "세션이 만료되었습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "이미지를 성공적으로 변경하였습니다!",
+        MACResult.FAIL: "이미지 변경에 실패하였습니다.",
+        MACResult.TIME_OUT: "세션이 만료되었습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     user = User._load_user_info(db_session, user_id = user_id)
     if user:
@@ -418,7 +435,7 @@ async def update_profile(user_id: str, file: UploadFile = File(None)):
     
     else:
         logging.error("유저가 존재하지 않습니다.")
-        result = UserResult.INTERNAL_SERVER_ERROR
+        result = MACResult.INTERNAL_SERVER_ERROR
                 
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -443,9 +460,9 @@ async def update_profile(user_id: str, file: UploadFile = File(None)):
 )
 async def send_email(email: str):
     response_dict = {
-        UserResult.SUCCESS: "메일을 성공적으로 전송하였습니다!",
-        UserResult.FAIL: "메일 전송에 실패하였습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "메일을 성공적으로 전송하였습니다!",
+        MACResult.FAIL: "메일 전송에 실패하였습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     result = User.send_email(session, email)
@@ -479,10 +496,10 @@ async def send_email(email: str):
 )
 async def verify_email(email: str, verify_code: str):
     response_dict = {
-        UserResult.SUCCESS: "성공적으로 인증되었습니다!",
-        UserResult.FAIL: "인증에 실패하였습니다.",
-        UserResult.TIME_OUT: "세션이 만료되었습니다.",
-        UserResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+        MACResult.SUCCESS: "성공적으로 인증되었습니다!",
+        MACResult.FAIL: "인증에 실패하였습니다.",
+        MACResult.TIME_OUT: "세션이 만료되었습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     result = User.verify_email_code(session, email, verify_code)
@@ -535,4 +552,4 @@ async def info(user_id: str):
         return user.info
     
     else:
-        return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = UserResult.NOTFOUND.value)
+        return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = MACResult.NOT_FOUND.value)
