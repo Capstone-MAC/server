@@ -376,13 +376,6 @@ async def update_saved_items(user_id: str, item_seq: int):
             "description": f"<img src='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRWnq7jeLUzceGdpxcXuVvh0_f0hiRz4ZiJmVPncOI&s' /> ",
             "content": None
         },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "이미지 변경에 실패하였습니다."}
-                }
-            }
-        },
         408: {
             "content": {
                 "application/json": {
