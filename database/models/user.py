@@ -482,7 +482,10 @@ class User(Base):
             if (datetime.now() - datetime.strptime(session[f"{email}-start-time"], "%Y/%m/%d %H:%M:%S")).total_seconds() >= 300:
                 return MACResult.TIME_OUT
             
-            if verify_code == session[f"{email}-verify-code"]:
+            if session[f"{email}-verify-code"] is None:
+                return MACResult.FAIL
+            
+            elif verify_code == session[f"{email}-verify-code"]:
                 return MACResult.SUCCESS
             
             return MACResult.FAIL
