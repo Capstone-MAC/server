@@ -152,7 +152,7 @@ class Item(Base):
             return None
         
     @staticmethod
-    def search_detail_items(db_session: Session, search_value: str, start: int, count: int) -> Optional[List[dict[str, Any]]]:
+    def search_detail_items(db_session: Session, search_value: str, start: int, count: int) -> Optional[List[Dict[str, Any]]]:
         try:
             if count > 50 or count < 1:
                 raise ValueError("count (max: 50, min: 1)")
