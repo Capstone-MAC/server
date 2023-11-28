@@ -1,7 +1,7 @@
 from sqlalchemy import Column, BIGINT, String
 from sqlalchemy.orm.session import Session
+from typing import Optional, List, Union
 from database.models.base import Base
-from typing import Optional
 import traceback
 import logging
 
@@ -33,7 +33,7 @@ class Category(Base):
             
         
     @staticmethod
-    def get_all_category_name(db_session: Session) -> Optional[list[str]]:
+    def get_all_category_name(db_session: Session) -> Optional[List[str]]:
         try:
             result = db_session.query(Category.name).all()
             categories = list(map(lambda x: x[0], result))
@@ -44,7 +44,7 @@ class Category(Base):
             return None
         
     @staticmethod
-    def convert_member(db_session: Session, name: Optional[str] = None, seq: Optional[int] = None) -> Optional[int | str]:
+    def convert_member(db_session: Session, name: Optional[str] = None, seq: Optional[int] = None) -> Optional[Union[int, str]]:
         assert [name, seq].count(None), "name과 seq중 값 하나만 있어야 합니다."
         try:
             if name is not None:
