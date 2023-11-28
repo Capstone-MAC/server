@@ -1,7 +1,7 @@
 from sqlalchemy import Column, BIGINT, TEXT, INT, DateTime, ForeignKeyConstraint
+from typing import Optional, TypeVar, List, Any, Dict
 from database.models.item_images import ItemImages
 from database.models.saved_items import SavedItems
-from typing import Optional, TypeVar, List, Any
 from database.models.category import Category
 from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
@@ -132,7 +132,7 @@ class Item(Base):
             return None
         
     @staticmethod
-    def search_items(db_session: Session, search_value: str, start: int, count: int) -> Optional[List[dict[str, Any]]]:
+    def search_items(db_session: Session, search_value: str, start: int, count: int) -> Optional[List[Dict[str, Any]]]:
         try:
             if count > 50 or count < 1:
                 raise ValueError("count (max: 50, min: 1)")
