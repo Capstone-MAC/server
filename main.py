@@ -1,9 +1,9 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from routers.user_router import user_router
 from fastapi.responses import JSONResponse
 from database.models import *
 from fastapi import FastAPI
+from routers import *
 import uvicorn
 
 def custom_openapi():
@@ -48,10 +48,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(user_router)
+app.include_router(item_router)
+app.include_router(item_image_router)
 
-@app.get("/")
-async def index():
-    return JSONResponse({"message": "메인 페이지 입니다."}, status_code = 200)    
     
 if __name__ == "__main__":
     uvicorn.run("main:app", host="localhost", port=8000, reload=True)
