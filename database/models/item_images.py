@@ -1,8 +1,8 @@
 from sqlalchemy import Column, BIGINT, String, ForeignKeyConstraint, PrimaryKeyConstraint
 from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
+from typing import Optional, List, Dict
 from database.models.base import Base
-from typing import Optional
 import traceback
 import logging
 import uuid
@@ -25,7 +25,7 @@ class ItemImages(Base):
         self.path = path
         
     @staticmethod
-    def get_all_image_path(db_session: Session, item_seq: int) -> Optional[list[dict[str, str]]]:
+    def get_all_image_path(db_session: Session, item_seq: int) -> Optional[List[Dict[str, str]]]:
         try:
             result = db_session.query(ItemImages.path, ItemImages.index).filter_by(item_seq = item_seq).all()
             
