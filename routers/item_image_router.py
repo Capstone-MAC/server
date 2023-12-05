@@ -1,7 +1,7 @@
 from fastapi.responses import JSONResponse, FileResponse
 from database.models.item_images import ItemImages
+from fastapi import APIRouter, UploadFile, File
 from database.models.results import MACResult
-from fastapi import APIRouter, UploadFile
 from routers.env import db_session
 from typing import Optional
 
@@ -78,7 +78,7 @@ async def get_item_image_path(item_seq: int, index: int = 0):
     },
     name = "이미지 업로드"
 )
-async def insert_item_image(item_seq: int, image: UploadFile, index: int = 0):
+async def insert_item_image(item_seq: int, image: UploadFile = File(None, max_length=5*1024*1024), index: int = 0):
     response_dict = {
         MACResult.SUCCESS: "이미지를 성공적으로 업로드 하였습니다.",
         MACResult.CONFLICT: "해당 인덱스에 이미지가 존재합니다.",
