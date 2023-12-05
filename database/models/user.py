@@ -4,6 +4,7 @@ from database.models.saved_items import SavedItems
 from email.mime.multipart import MIMEMultipart
 from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
+from database.models.item import Item
 from database.models.base import Base
 from email.mime.text import MIMEText
 from auth.env import APP_PASSWORD
@@ -381,7 +382,7 @@ class User(Base):
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
             
-    def load_saved_items(self, db_session: Session) -> List[int]:
+    def load_saved_items(self, db_session: Session) -> List[Item]:
         """
         Parameters:
             self: 클랙스 객체 본인. \n
@@ -393,9 +394,11 @@ class User(Base):
         """
         try:
             saved_items = SavedItems.get_saved_items_by_user_seq(db_session, self.seq) # type: ignore
-            return list(map(lambda x: x.info["item_seq"], saved_items))
+            results = []
+            for item in saved_items:
+                results.append(Item.get_item_by_item_seq(db_session, item.item_seq)) #type: ignore
+            return results
             
-        
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return []
@@ -414,7 +417,7 @@ class User(Base):
         """
         try:
             items = self.load_saved_items(db_session)
-            if item_seq not in items:
+            if item_seq not in list(map(lambda x: x.seq, items)):
                 saved_item = SavedItems(self.seq, item_seq, datetime.now()) #type: ignore
                 db_session.add(saved_item)
                 
