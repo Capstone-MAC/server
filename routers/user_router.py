@@ -4,6 +4,7 @@ from database.models.results import MACResult
 from starlette.responses import FileResponse
 from routers.env import db_session, session
 from fastapi.responses import JSONResponse
+from typing import Optional
 import logging
 
 user_router = APIRouter(
@@ -163,6 +164,47 @@ async def logout(user_id: str):
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
+@user_router.post("/update",
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "성공적으로 정보를 변경하였습니다."}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "정보 변경에 실패하였습니다."}
+                }
+            }
+        },
+        409: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "이미 해당 이메일이 존재합니다."}
+                }
+            }
+        },
+    },
+    name = "정보 변경하기"
+)
+async def update_info(user_id: str, name: Optional[str] = None, email: Optional[str] = None, phone: Optional[str] = None):
+    response_dict = {
+        MACResult.SUCCESS: "성공적으로 정보를 변경하였습니다.",
+        MACResult.FAIL: "정보 변경에 실패하였습니다.",
+        MACResult.CONFLICT: "이미 해당 이메일이 존재합니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    
+    user = User._load_user_info(db_session, user_id = user_id)
+    result = MACResult.FAIL
+    if user:
+        result = user.update_info(db_session, user_id, name, email, phone)
+    
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+        
 @user_router.post("/forgot/id",
    responses={
         200: {

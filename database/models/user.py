@@ -345,6 +345,31 @@ class User(Base):
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
+        
+    def update_info(self, db_session: Session, user_id: str, name: Optional[str] = None, email: Optional[str] = None, phone: Optional[str] = None) -> MACResult:
+        try:
+            if email:
+                user = User._load_user_info(db_session, email = email)
+                if user:
+                    return MACResult.CONFLICT
+            
+            user = db_session.query(User).filter_by(user_id = user_id)
+            if user:
+                env_list = "name email phone".split(" ")
+                for env in env_list:
+                    exec(f"user.update({{'{env}': {env} if {env} else self.{env}}})")
+                
+            else:
+                return MACResult.FAIL
+                
+            return MACResult.SUCCESS
+        
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return MACResult.INTERNAL_SERVER_ERROR
+        
+        finally:
+            db_session.commit()
     
     def update_profile_image(self, db_session: Session, session: Dict[str, Any], profile: Optional[bytes]) -> MACResult:
         """
