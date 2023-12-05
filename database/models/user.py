@@ -365,10 +365,10 @@ class User(Base):
         try:
             if profile:
                 file_name = f"{str(uuid.uuid4())}.jpg"
-                with open(os.path.join("./images", file_name), "wb") as fp:
+                with open(os.path.join("images", file_name), "wb") as fp:
                     fp.write(profile)
                     
-                self.profile = os.path.join("./images", file_name)
+                self.profile = os.path.join("images", file_name)
                 
             else:
                 self.profile = None

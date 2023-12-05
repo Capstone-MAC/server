@@ -56,10 +56,10 @@ class ItemImages(Base):
     def insert_image(db_session: Session, item_seq: int, index: int, image: bytes) -> MACResult:
         try:
             file_name = f"{str(uuid.uuid4())}.jpg"
-            with open(os.path.join("./images", file_name), "wb") as fp:
+            with open(os.path.join("images", file_name), "wb") as fp:
                 fp.write(image)
             
-            item_images = ItemImages(item_seq, index, os.path.join("./images", file_name))
+            item_images = ItemImages(item_seq, index, os.path.join("images", file_name))
             if db_session.query(ItemImages.index).filter_by(item_seq = item_seq, index = index).first() is not None:
                 return MACResult.CONFLICT
             db_session.add(item_images)
