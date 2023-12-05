@@ -134,7 +134,7 @@ class User(Base):
             if email:
                 result = query.filter_by(email = email).all()
                 
-            if result is None:
+            if result is None or len(result) == 0:
                 return None
             
             user = result[0]
