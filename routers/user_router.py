@@ -344,26 +344,24 @@ async def check_duplicate_email(email: str):
         200: {
             "content": {
                 "application/json": {
-                    "example": {"items": 
-                        [
-                            {
-                                "seq": -1,
-                                "name": "test2",
-                                "created_at": "2023년 11월 28일",
-                                "price": 10000,
-                                "saved_cnt": 2,
-                                "image_path": "./images/1687e0e2-45bc-4a31-b506-db3edb933772.jpg"
-                            },
-                            {
-                                "seq": -2,
-                                "name": "test3",
-                                "created_at": "2023년 11월 28일",
-                                "price": 10000,
-                                "saved_cnt": 1,
-                                "image_path": None
-                            }
-                        ]
-                    }
+                    "example": [
+                        {
+                            "seq": -1,
+                            "name": "test2",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 2,
+                            "image_path": "./images/1687e0e2-45bc-4a31-b506-db3edb933772.jpg"
+                        },
+                        {
+                            "seq": -2,
+                            "name": "test3",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 1,
+                            "image_path": None
+                        }
+                    ]
                 }
             }
         },
@@ -382,7 +380,7 @@ async def load_save_items(user_id: str):
     if user:
         items = user.load_saved_items(db_session)
         if items:
-            return JSONResponse({"items": list(map(lambda x: x.recommend(db_session), items))}, status_code = MACResult.SUCCESS.value)
+            return JSONResponse(list(map(lambda x: x.recommend(db_session), items)), status_code = MACResult.SUCCESS.value)
         
     return JSONResponse({"message": "유저 아이디가 잘못 입력되었습니다."}, status_code=MACResult.FAIL.value) 
     
