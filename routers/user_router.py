@@ -415,7 +415,7 @@ async def profile(path: str):
     },
     name = "프로필 이미지 업데이트"
 )
-async def update_profile(user_id: str, file: UploadFile = File(None, max_length=5*1024*1024)):
+async def update_profile(user_id: str, file: UploadFile = File(None)):
     response_dict = {
         MACResult.SUCCESS: "이미지를 성공적으로 변경하였습니다!",
         MACResult.FAIL: "이미지 변경에 실패하였습니다.",
