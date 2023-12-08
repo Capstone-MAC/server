@@ -2,6 +2,7 @@ from sqlalchemy import Column, TEXT, BIGINT, String, DateTime
 from typing import List, Optional, TypeVar, Dict, Any
 from database.models.saved_items import SavedItems
 from email.mime.multipart import MIMEMultipart
+from database.models.purchase import Purchase
 from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
 from database.models.item import Item
@@ -525,3 +526,25 @@ class User(Base):
         finally:
             del session[f"{email}-verify-code"]
             del session[f"{email}-start-time"]
+    
+    def purchase(self, db_session: Session, item_seq: int) -> MACResult:
+        try:
+            item = db_session.query(Item).filter_by(seq = item_seq).first()
+            if item:
+                if not item.purchase_type: #type: ignore
+                    item.update_item_info(db_session, purchase_type = True)
+                    purchase = Purchase(self.seq, item_seq) #type: ignore
+                    db_session.add(purchase)
+                    db_session.commit()
+                    
+                else:
+                    return MACResult.CONFLICT
+
+            else:
+                return MACResult.FAIL
+                
+            return MACResult.SUCCESS
+        
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return MACResult.INTERNAL_SERVER_ERROR

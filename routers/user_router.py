@@ -1,5 +1,6 @@
 from database.models.user import User, SignUpModel, SignoutModel, LoginModel, ForgotPasswordModel
 from fastapi import APIRouter, UploadFile, File
+from database.models.purchase import Purchase
 from database.models.results import MACResult
 from starlette.responses import FileResponse
 from routers.env import db_session, session
@@ -604,3 +605,81 @@ async def info(user_id: str):
     
     else:
         return JSONResponse({"message": "조건을 만족하는 유저가 없습니다."}, status_code = MACResult.NOT_FOUND.value)
+
+@user_router.post("/purchase",
+    responses = {
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "성공적으로 구매 신청하였습니다."}
+                }
+            }
+        },
+        404: {
+            "content": {
+                "aplication/json": {
+                    "example": {"message": "사용자를 찾을 수 없습니다."}
+                }
+            }
+        },
+        409: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "이미 구매중인 상품입니다."}
+                }
+            }
+        }
+    },
+    name = "상품 구매 요청하기"
+)
+async def purchase(user_id: str, item_seq: int):
+    response_dict = {
+        MACResult.SUCCESS: "성공적으로 구매 신청하였습니다.",
+        MACResult.NOT_FOUND: "사용자를 찾을 수 없습니다.",
+        MACResult.CONFLICT: "이미 구매중인 상품입니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
+    }
+    user = User._load_user_info(db_session, user_id = user_id)
+    result = MACResult.NOT_FOUND
+    if user:
+        result = user.purchase(db_session, item_seq)
+    
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+
+@user_router.get("/purchase/list",
+    responses = {
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "seq": -1,
+                            "name": "test_product",
+                            "created_at": "51분 전",
+                            "price": 10000,
+                            "saved_cnt": 0,
+                            "image_path": None
+                        }
+                    ]
+                }
+            }
+        },
+        404: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "사용자를 찾을 수 없습니다."}
+                }
+            }
+        }
+    },
+    name = "구매중인 상품 목록 불러오기"
+)
+async def get_purchase_list(user_id: str):
+    user = User._load_user_info(db_session, user_id = user_id)
+    if user:
+        result = Purchase.get_purchase_item_list(db_session, user.seq) # type: ignore
+        return JSONResponse(result, status_code = MACResult.SUCCESS.value)
+    
+    else:
+        return JSONResponse({"message": "사용자를 찾을 수 없습니다."}, status_code = MACResult.NOT_FOUND.value)
+    

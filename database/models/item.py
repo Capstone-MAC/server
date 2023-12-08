@@ -1,5 +1,6 @@
-from sqlalchemy import Column, BIGINT, TEXT, INT, DateTime, ForeignKeyConstraint
+from sqlalchemy import Column, BIGINT, TEXT, INT, DateTime, ForeignKeyConstraint, BOOLEAN
 from typing import Optional, TypeVar, List, Any, Dict
+from database.utility.time_util import TimeUtility
 from database.models.item_images import ItemImages
 from database.models.saved_items import SavedItems
 from database.models.category import Category
@@ -27,6 +28,7 @@ class Item(Base):
     views = Column(INT, nullable = True, default = 0) # 아이템 조회수
     created_at = Column(DateTime, nullable = True, default = func.now()) # 아이템 등록 날짜
     category_seq = Column(BIGINT, nullable = False) # 카테고리 고유 번호
+    purchase_type = Column(BOOLEAN, default = False) # 상품 구매 상태 여부
     
     __table_args__ = (ForeignKeyConstraint(
         ["category_seq"], ["category.seq"] , ondelete="CASCADE", onupdate="CASCADE"
@@ -42,7 +44,7 @@ class Item(Base):
             "description": self.description,
             "views": self.views,
             "saved_cnt": len(SavedItems.get_saved_items_by_item_seq(db_session, self.seq)), #type: ignore
-            "created_at": Item.parse_time(self.created_at.strftime("%Y/%m/%d %H:%M:%S")),
+            "created_at": TimeUtility.parse_time(self.created_at.strftime("%Y/%m/%d %H:%M:%S")),
             "images": ItemImages.get_all_image_path(db_session, self.seq) #type: ignore
         }
         
@@ -50,13 +52,13 @@ class Item(Base):
         return {
             "seq": self.seq,
             "name": self.name,
-            "created_at": Item.parse_time(self.created_at.strftime("%Y/%m/%d %H:%M:%S")),
+            "created_at": TimeUtility.parse_time(self.created_at.strftime("%Y/%m/%d %H:%M:%S")),
             "price": self.price,
             "saved_cnt": len(SavedItems.get_saved_items_by_item_seq(db_session, self.seq)), #type: ignore
             "image_path": ItemImages.get_image_path(db_session, self.seq, 0) #type: ignore
         }
     
-    def __init__(self, name: str, category_seq: int, seq: Optional[int] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, created_at: datetime = datetime.now()):
+    def __init__(self, name: str, category_seq: int, seq: Optional[int] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, created_at: datetime = datetime.now(), purchase_type: Optional[bool] = None):
         self.name = name
         self.category_seq = category_seq
         self.seq = seq
@@ -65,28 +67,7 @@ class Item(Base):
         self.description = description
         self.views = views
         self.created_at = created_at
-        
-    @staticmethod
-    def parse_time(created_at: str) -> str:
-        time = datetime.strptime(created_at, "%Y/%m/%d %H:%M:%S")
-        time_diff = (datetime.now() - time)
-        seconds = time_diff.seconds
-        days = time_diff.days
-        if seconds < 60:
-            return f"{seconds}초 전"
-        
-        elif seconds < 60 * 60:
-            return f"{seconds // 60}분 전"
-        
-        elif days < 1:
-            return f"{seconds // 60 // 60}시간 전"
-        
-        else:
-            if days <= 3:
-                return f"{days}일 전"
-            
-            else:
-                return time.strftime("%Y년 %m월 %d일")
+        self.purchase_type = purchase_type
        
     @staticmethod
     def get_item_by_item_seq(db_session: Session, seq: int) -> Optional[Item]:
@@ -120,7 +101,7 @@ class Item(Base):
             if start < 0:
                 raise ValueError("start (min: 0)")
             
-            items = db_session.query(Item).order_by(Item.views.desc()).all()[start: start + count] #type: ignore
+            items = db_session.query(Item).filter_by(purchase_type = False).order_by(Item.views.desc()).all()[start: start + count] #type: ignore
             if items is None:
                 return None
             
@@ -140,7 +121,7 @@ class Item(Base):
             if start < 0:
                 raise ValueError("start (min: 0)")
             
-            items = db_session.query(Item.seq, Item.name).filter(Item.name.ilike(f"%{search_value}%")).order_by(Item.seq.asc()).all() #type: ignore
+            items = db_session.query(Item.seq, Item.name).filter(Item.name.ilike(f"%{search_value}%"), Item.purchase_type == False).order_by(Item.seq.asc()).all() #type: ignore
             return list(map(lambda x: {"seq": x[0], "name": x[1]}, items))
         
         except ValueError as e:
@@ -160,7 +141,7 @@ class Item(Base):
             if start < 0:
                 raise ValueError("start (min: 0)")
             
-            items = db_session.query(Item).filter(Item.name.ilike(f"%{search_value}%")).order_by(Item.seq.asc()).all() #type: ignore
+            items = db_session.query(Item).filter(Item.name.ilike(f"%{search_value}%"), Item.purchase_type == False).order_by(Item.seq.asc()).all() #type: ignore
             return list(map(lambda x: x.recommend(db_session), items))
         
         except ValueError as e:
@@ -191,9 +172,9 @@ class Item(Base):
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
                 
-    def update_item_info(self, db_session: Session, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None) -> MACResult:
+    def update_item_info(self, db_session: Session, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, purchase_type: Optional[bool] = None) -> MACResult:
         try:
-            if any(arg is not None for arg in [name, cnt, price, description, views]):
+            if any(arg is not None for arg in [name, cnt, price, description, views, purchase_type]):
                 item = db_session.query(Item).filter_by(seq = self.seq)
                 if name:
                     item.update({"name": name})
@@ -209,6 +190,9 @@ class Item(Base):
                 
                 if views:
                     item.update({"views": views})
+                    
+                if purchase_type:
+                    item.update({"purchase_type": purchase_type})
                     
                 db_session.commit()
                 return MACResult.SUCCESS
