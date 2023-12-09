@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BIGINT, String, ForeignKeyConstraint, PrimaryKeyConstraint
+from sqlalchemy import Column, BIGINT, TEXT, ForeignKeyConstraint, PrimaryKeyConstraint
 from database.models.results import MACResult
 from sqlalchemy.orm.session import Session
 from typing import Optional, List, Dict
@@ -13,7 +13,7 @@ class ItemImages(Base):
     
     item_seq = Column(BIGINT, nullable = False, autoincrement = True, primary_key = False) # 물품 고유 번호
     index = Column(BIGINT, nullable = True, default = 0) # 물품 이미지 인덱스
-    path = Column(String(50), default = None, nullable = True) # 이미지 경로
+    path = Column(TEXT, default = None, nullable = True) # 이미지 경로
     
     __table_args__ = (ForeignKeyConstraint(
         ["item_seq"], ["item.seq"] , ondelete="CASCADE", onupdate="CASCADE"
