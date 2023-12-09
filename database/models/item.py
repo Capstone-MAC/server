@@ -121,9 +121,9 @@ class Item(Base):
             if start < 0:
                 raise ValueError("start (min: 0)")
             
-            items = db_session.query(Item.seq, Item.name).filter(Item.name.ilike(f"%{search_value}%"), Item.purchase_type == False).order_by(Item.seq.asc()).all() #type: ignore
-            return list(map(lambda x: {"seq": x[0], "name": x[1]}, items))
-        
+            items = db_session.query(Item.name).filter(Item.name.ilike(f"%{search_value}%"), Item.purchase_type == False).order_by(Item.seq.asc()).all() #type: ignore
+            return [dict(t) for t in {tuple(d.items()) for d in list(map(lambda x: {"name": x[0]}, items))}]
+            
         except ValueError as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return None
