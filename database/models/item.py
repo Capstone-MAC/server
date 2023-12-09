@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BIGINT, TEXT, INT, DateTime, ForeignKeyConstraint, BOOLEAN
+from sqlalchemy import Column, BIGINT, TEXT, INT, DateTime, BOOLEAN, ForeignKeyConstraint
 from typing import Optional, TypeVar, List, Any, Dict
 from database.utility.time_util import TimeUtility
 from database.models.item_images import ItemImages
@@ -21,6 +21,7 @@ class Item(Base):
     __tablename__ = "item"
     
     seq = Column(BIGINT, nullable = False, autoincrement = True, primary_key = True) # 아이템 일련번호
+    user_seq = Column(BIGINT, nullable = False) # 미들맨 고유 번호
     name = Column(TEXT, nullable = False) # 아이템 이름
     cnt = Column(INT, nullable = True, default = -1) # 아이템 잔여 개수
     price = Column(INT, nullable = True, default = -1) # 아이템 가격
@@ -34,9 +35,11 @@ class Item(Base):
         ["category_seq"], ["category.seq"] , ondelete="CASCADE", onupdate="CASCADE"
     ),)
     
-    def info(self, db_session: Session):
+    def info(self, db_session: Session):    
+        from database.models.user import User
         return {
             "seq": self.seq,
+            "middleman_name": User.convert_seq_to_name(db_session, self.user_seq), #type: ignore
             "name": self.name,
             "category": Category.convert_member(db_session, seq = self.category_seq), # type: ignore
             "cnt": format(self.cnt, ','),
@@ -58,9 +61,10 @@ class Item(Base):
             "image_path": ItemImages.get_image_path(db_session, self.seq, 0) #type: ignore
         }
     
-    def __init__(self, name: str, category_seq: int, seq: Optional[int] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, created_at: datetime = datetime.now(), purchase_type: Optional[bool] = None):
+    def __init__(self, name: str, category_seq: int, user_seq: int, seq: Optional[int] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, created_at: datetime = datetime.now(), purchase_type: Optional[bool] = None):
         self.name = name
         self.category_seq = category_seq
+        self.user_seq = user_seq
         self.seq = seq
         self.cnt = cnt
         self.price = price
@@ -153,7 +157,7 @@ class Item(Base):
             return None
        
     @staticmethod
-    def insert_item_info(db_session: Session, name: str, category: str, cnt: int, price: int, description: str) -> MACResult:
+    def insert_item_info(db_session: Session, user_seq: int, name: str, category: str, cnt: int, price: int, description: str) -> MACResult:
         try:
             category_seq = Category.convert_member(db_session, name = category)
             if category_seq is None:
@@ -163,7 +167,7 @@ class Item(Base):
                 return MACResult.INTERNAL_SERVER_ERROR
             
             else:
-                item = Item(name = name, category_seq = category_seq, cnt = cnt, price = price, description = description)
+                item = Item(name = name, user_seq = user_seq, category_seq = category_seq, cnt = cnt, price = price, description = description)
                 db_session.add(item)
                 db_session.commit()
                 return MACResult.SUCCESS
@@ -172,10 +176,13 @@ class Item(Base):
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
                 
-    def update_item_info(self, db_session: Session, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None, purchase_type: Optional[bool] = None) -> MACResult:
+    def update_item_info(self, db_session: Session, user_seq: int, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None) -> MACResult:
         try:
-            if any(arg is not None for arg in [name, cnt, price, description, views, purchase_type]):
+            if any(arg is not None for arg in [name, cnt, price, description, views]):
                 item = db_session.query(Item).filter_by(seq = self.seq)
+                if item.first().user_seq != user_seq: # type: ignore
+                    return MACResult.FORBIDDEN
+                    
                 if name:
                     item.update({"name": name})
                 
@@ -191,9 +198,6 @@ class Item(Base):
                 if views:
                     item.update({"views": views})
                     
-                if purchase_type:
-                    item.update({"purchase_type": purchase_type})
-                    
                 db_session.commit()
                 return MACResult.SUCCESS
             
@@ -204,8 +208,11 @@ class Item(Base):
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
 
-    def delete_item(self, db_session: Session) -> MACResult:
+    def delete_item(self, db_session: Session, user_seq: int) -> MACResult:
         try:
+            if user_seq != self.user_seq:
+                return MACResult.FORBIDDEN
+            
             result = db_session.query(Item).filter_by(seq = self.seq).delete()
             db_session.commit()
             return MACResult.SUCCESS if result == 1 else MACResult.FAIL
@@ -213,4 +220,12 @@ class Item(Base):
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
+    
+    def purchase_request(self, db_session: Session) -> MACResult:
+        try:
+            db_session.query(Item).filter_by(item_seq = self.seq).update({"purchase_type": True})
+            return MACResult.SUCCESS
         
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return MACResult.INTERNAL_SERVER_ERROR

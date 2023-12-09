@@ -1,6 +1,7 @@
 from database.models.item import Item, Category
 from database.models.results import MACResult
 from fastapi.responses import JSONResponse
+from database.models.user import User
 from fastapi import APIRouter, Query
 from routers.env import db_session
 from typing import Optional
@@ -206,15 +207,26 @@ async def recommend_item(start: int = 0, count: int = 10,):
     },
     name = "상품 등록하기"
 )
-async def insert_item(name: str, cnt: int, price: int, description: str, category: str = Query(enum = Category.get_all_category_name(db_session))):
+async def insert_item(user_id: str, name: str, cnt: int, price: int, description: str, category: str = Query(enum = Category.get_all_category_name(db_session))):
     response_dict = {
         MACResult.SUCCESS: "상품정보가 등록되었습니다.",
         MACResult.FAIL: "상품정보 입력에 실패하였습니다.",
+        MACResult.FORBIDDEN: "접근 권한이 없습니다.",
+        MACResult.NOT_FOUND: "유저를 찾을 수 없습니다.",
         MACResult.ENTITY_ERROR: "유효한 카테고리가 아닙니다.",
         MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
-    result = Item.insert_item_info(db_session, name, category, cnt, price, description)
+    user = User._load_user_info(db_session, user_id = user_id)
+    if user:
+        if user.is_middleman: #type: ignore
+            result = Item.insert_item_info(db_session, user.seq, name, category, cnt, price, description) # type: ignore
+        
+        else:
+            result = MACResult.FORBIDDEN
     
+    else:
+        result = MACResult.NOT_FOUND
+        
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
 @item_router.post("/update", 
@@ -236,10 +248,11 @@ async def insert_item(name: str, cnt: int, price: int, description: str, categor
     },
     name = "상품 정보 업데이트 하기"
 )
-async def update_item(item_seq: int, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None):
+async def update_item(item_seq: int, user_id: str, name: Optional[str] = None, cnt: Optional[int] = None, price: Optional[int] = None, description: Optional[str] = None, views: Optional[int] = None):
     response_dict = {
         MACResult.SUCCESS: "성공적으로 상품정보를 업데이트 하였습니다.",
         MACResult.FAIL: "상품 정보를 찾을 수 없습니다.",
+        MACResult.NOT_FOUND: "유저 정보를 찾을 수 없습니다.",
         MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     item = Item.get_item_by_item_seq(db_session, seq = item_seq)
@@ -247,7 +260,12 @@ async def update_item(item_seq: int, name: Optional[str] = None, cnt: Optional[i
         result = MACResult.FAIL
     
     else:
-        result = item.update_item_info(db_session, name, cnt, price, description, views)
+        user = User._load_user_info(db_session, user_id = user_id)
+        if user:
+            result = item.update_item_info(db_session, user.seq, name, cnt, price, description, views) # type: ignore
+        
+        else:
+            result = MACResult.NOT_FOUND
     
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
@@ -270,18 +288,25 @@ async def update_item(item_seq: int, name: Optional[str] = None, cnt: Optional[i
     },
     name = "상품 삭제하기"
 )
-async def delete_item(item_seq: int):
+async def delete_item(item_seq: int, user_id: str):
     response_dict = {
         MACResult.SUCCESS: "상품이 성공적으로 제거되었습니다.",
         MACResult.FAIL: "상품 제거에 실패하였습니다.",
+        MACResult.NOT_FOUND: "유저 정보를 찾을 수 없습니다.",
         MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다."
     }
     
     item = Item.get_item_by_item_seq(db_session, item_seq)
     if item is None:
         result = MACResult.FAIL
+        
     else:
-        result = item.delete_item(db_session)
+        user = User._load_user_info(db_session, user_id = user_id)
+        if user:
+            result = item.delete_item(db_session, user.seq) # type: ignore
+            
+        else:
+            result = MACResult.NOT_FOUND
         
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, TEXT, BIGINT, String, DateTime
+from sqlalchemy import Column, TEXT, BIGINT, String, DateTime, BOOLEAN
 from typing import List, Optional, TypeVar, Dict, Any
 from database.models.saved_items import SavedItems
 from email.mime.multipart import MIMEMultipart
@@ -79,7 +79,7 @@ class User(Base):
     password_update_at = Column(DateTime(timezone = True), default = func.now()) # 비밀번호 업데이트 시간
     login_at = Column(DateTime(timezone = True), default = func.now()) # 마지막 로그인 시간
     logout_at = Column(DateTime(timezone = True), default = func.now()) # 마지막 로그아웃 시간
-    
+    is_middleman = Column(BOOLEAN, nullable = True, default = False)
     
     @property 
     def info(self) -> Dict[str, Any]:
@@ -91,13 +91,14 @@ class User(Base):
             "phone": self.phone,
             "idnum": self.idnum,
             "profile": self.profile,
+            "is_middleman": self.is_middleman,
             "created_at": self.created_at.strftime("%Y/%m/%d %H:%M:%S"),
             "password_update_date": self.password_update_at.strftime("%Y/%m/%d %H:%M:%S"),
             "login_at": self.login_at.strftime("%Y/%m/%d %H:%M:%S"), #type: ignore
             "logout_at": self.logout_at.strftime("%Y/%m/%d %H:%M:%S")  #type: ignore
         }
     
-    def __init__(self, user_id: str, password: str, name: str, email: str, phone: str, idnum: str, seq: Optional[int] = None, profile: Optional[str] = None, created_at: datetime = datetime.now(), password_update_at: datetime = datetime.now(), login_at: datetime = datetime.now(), logout_at: datetime = datetime.now()) -> None:
+    def __init__(self, user_id: str, password: str, name: str, email: str, phone: str, idnum: str, seq: Optional[int] = None, profile: Optional[str] = None, is_middleman: Optional[bool] = False, created_at: datetime = datetime.now(), password_update_at: datetime = datetime.now(), login_at: datetime = datetime.now(), logout_at: datetime = datetime.now()) -> None:
         self.seq = seq
         self.user_id = user_id
         self.password = password
@@ -106,10 +107,21 @@ class User(Base):
         self.phone = phone
         self.profile = profile
         self.idnum = idnum
+        self.is_middleman = is_middleman
         self.created_at = created_at
         self.password_update_at = password_update_at
         self.login_at = login_at
         self.logout_at = logout_at
+        
+    @staticmethod
+    def convert_seq_to_name(db_session: Session, seq: int) -> Optional[str]:
+        try:
+            result = db_session.query(User.name).filter_by(user_seq = seq).first()
+            return result
+            
+        except Exception as e:
+            logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            return None
         
     @staticmethod
     def _load_user_info(db_session: Session, seq: Optional[int] = None, user_id: Optional[str] = None, email: Optional[str] = None) -> Optional[User]:
@@ -532,7 +544,7 @@ class User(Base):
             item = db_session.query(Item).filter_by(seq = item_seq).first()
             if item:
                 if not item.purchase_type: #type: ignore
-                    item.update_item_info(db_session, purchase_type = True)
+                    item.purchase_request(db_session)
                     purchase = Purchase(self.seq, item_seq) #type: ignore
                     db_session.add(purchase)
                     db_session.commit()
