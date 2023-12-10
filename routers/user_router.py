@@ -339,96 +339,6 @@ async def check_duplicate_email(email: str):
     result = User.check_duplicate(db_session, email = email)
     return JSONResponse({"message": response_dict[result]}, status_code = result.value)
 
-
-@user_router.get("/items", 
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "example": [
-                        {
-                            "seq": -1,
-                            "name": "test2",
-                            "created_at": "2023년 11월 28일",
-                            "price": 10000,
-                            "saved_cnt": 2,
-                            "image_path": "./images/1687e0e2-45bc-4a31-b506-db3edb933772.jpg"
-                        },
-                        {
-                            "seq": -2,
-                            "name": "test3",
-                            "created_at": "2023년 11월 28일",
-                            "price": 10000,
-                            "saved_cnt": 1,
-                            "image_path": None
-                        }
-                    ]
-                }
-            }
-        },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "유저 아이디가 잘못 입력되었습니다."}
-                }
-            }
-        },
-    },
-    name = "상품 목록 조회하기"
-)
-async def load_save_items(user_id: str):
-    user = User._load_user_info(db_session, user_id = user_id)
-    if user:
-        items = user.load_saved_items(db_session)
-        if items:
-            return JSONResponse(list(map(lambda x: x.recommend(db_session), items)), status_code = MACResult.SUCCESS.value)
-        
-    return JSONResponse({"message": "유저 아이디가 잘못 입력되었습니다."}, status_code=MACResult.FAIL.value) 
-    
-
-@user_router.post("/items/update", 
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "성공적으로 변경하였습니다."}
-                }
-            }
-        },
-        401: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "변경에 실패하였습니다."}
-                }
-            }
-        },
-        409: {
-            "content": {
-                "application/json": {
-                    "example": {"message": "데이터 충돌이 일어났습니다."}
-                }
-            }
-        }
-    },
-    name = "상품 목록 업데이트 하기"
-)
-async def update_saved_items(user_id: str, item_seq: int):
-    response_dict = {
-        MACResult.SUCCESS: "성공적으로 변경하였습니다.",
-        MACResult.FAIL: "변경에 실패하였습니다.",
-        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다.",
-    }
-    
-    user = User._load_user_info(db_session, user_id = user_id)
-    if user:
-        result = user.update_saved_items(db_session, item_seq)
-        
-    else:
-        logging.error("유저가 존재하지 않습니다.")
-        result = MACResult.INTERNAL_SERVER_ERROR
-    
-    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
-
 @user_router.get("/profile",
     responses={
         200: {
@@ -683,3 +593,146 @@ async def get_purchase_list(user_id: str):
     else:
         return JSONResponse({"message": "사용자를 찾을 수 없습니다."}, status_code = MACResult.NOT_FOUND.value)
     
+
+@user_router.get("/items", 
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "seq": -1,
+                            "name": "test2",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 2,
+                            "image_path": "./images/1687e0e2-45bc-4a31-b506-db3edb933772.jpg"
+                        },
+                        {
+                            "seq": -2,
+                            "name": "test3",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 1,
+                            "image_path": None
+                        }
+                    ]
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "유저 아이디가 잘못 입력되었습니다."}
+                }
+            }
+        },
+    },
+    name = "상품 목록 조회하기"
+)
+async def load_save_items(user_id: str):
+    user = User._load_user_info(db_session, user_id = user_id)
+    if user:
+        items = user.load_saved_items(db_session)
+        if items:
+            return JSONResponse(list(map(lambda x: x.recommend(db_session), items)), status_code = MACResult.SUCCESS.value)
+        
+    return JSONResponse({"message": "유저 아이디가 잘못 입력되었습니다."}, status_code=MACResult.FAIL.value)
+
+@user_router.post("/items/update", 
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "성공적으로 변경하였습니다."}
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "변경에 실패하였습니다."}
+                }
+            }
+        },
+        409: {
+            "content": {
+                "application/json": {
+                    "example": {"message": "데이터 충돌이 일어났습니다."}
+                }
+            }
+        }
+    },
+    name = "상품 목록 업데이트 하기"
+)
+async def update_saved_items(user_id: str, item_seq: int):
+    response_dict = {
+        MACResult.SUCCESS: "성공적으로 변경하였습니다.",
+        MACResult.FAIL: "변경에 실패하였습니다.",
+        MACResult.INTERNAL_SERVER_ERROR: "서버 내부 에러가 발생하였습니다.",
+    }
+    
+    user = User._load_user_info(db_session, user_id = user_id)
+    if user:
+        result = user.update_saved_items(db_session, item_seq)
+        
+    else:
+        logging.error("유저가 존재하지 않습니다.")
+        result = MACResult.INTERNAL_SERVER_ERROR
+    
+    return JSONResponse({"message": response_dict[result]}, status_code = result.value)
+
+@user_router.get("/item/registerd",
+    responses = {
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "seq": -1,
+                            "name": "test2",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 2,
+                            "image_path": "./images/1687e0e2-45bc-4a31-b506-db3edb933772.jpg"
+                        },
+                        {
+                            "seq": -2,
+                            "name": "test3",
+                            "created_at": "2023년 11월 28일",
+                            "price": 10000,
+                            "saved_cnt": 1,
+                            "image_path": None
+                        }
+                    ]
+                }
+            }
+        },
+        401: {
+            "content": {
+                "application/json": {
+                    "example": []
+                }
+            }
+        },
+        403: {  
+            "content": {
+                "application/json": {
+                    "example": []
+                }
+            }
+        }
+    },
+    name = "중개자 등록 상품 조회하기"
+)
+async def get_registerd_items(user_id: str):
+    user = User._load_user_info(db_session, user_id = user_id) # type: ignore
+    if user:
+        if user.is_middleman: # type: ignore
+            return JSONResponse(user.get_registerd_item(db_session), status_code = MACResult.SUCCESS.value)
+        
+        else:
+            return JSONResponse([], status_code = MACResult.FORBIDDEN.value)
+        
+    else:
+        return JSONResponse([], status_code = MACResult.FAIL.value)

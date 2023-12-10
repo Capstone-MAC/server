@@ -560,3 +560,7 @@ class User(Base):
         except Exception as e:
             logging.error(f"{e}: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             return MACResult.INTERNAL_SERVER_ERROR
+        
+    def get_registerd_item(self, db_session: Session):
+        items = db_session.query(Item).filter_by(user_seq = self.seq).all()
+        return list(map(lambda x: x.recommend(db_session), items)) # type: ignore
