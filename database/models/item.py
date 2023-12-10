@@ -223,7 +223,7 @@ class Item(Base):
     
     def purchase_request(self, db_session: Session) -> MACResult:
         try:
-            db_session.query(Item).filter_by(item_seq = self.seq).update({"purchase_type": True})
+            db_session.query(Item).filter_by(seq = self.seq).update({"purchase_type": True})
             db_session.commit()
             return MACResult.SUCCESS
         
